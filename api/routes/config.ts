@@ -1,13 +1,13 @@
 import express, { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
-import type { AppConfig, ApiResponse, CleanupRequest } from '../types/shared';
+import type { AppConfig, ApiResponse } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 
 const router: express.Router = express.Router();
 
-// 默认配置
-const defaultConfig: AppConfig = {
+// 系统默认配置
+const defaultSystemConfig: AppConfig = {
   database: {
     host: 'localhost',
     port: 3306,
@@ -30,27 +30,54 @@ const defaultConfig: AppConfig = {
   }
 };
 
+// 前端设置默认配置
+const defaultUserConfig = {
+  maxItems: 1000,
+  autoCleanupDays: 30
+};
+
 // 配置文件路径
-const configPath = path.join(process.cwd(), 'config.json');
+const systemConfigPath = path.join(process.cwd(), 'config.json');
+const userConfigPath = path.join(process.cwd(), 'user-config.json');
 
 /**
- * 读取配置文件
+ * 读取系统配置文件
  */
-async function readConfig(): Promise<AppConfig> {
+async function readSystemConfig(): Promise<AppConfig> {
   try {
-    const configData = await fs.readFile(configPath, 'utf-8');
-    return { ...defaultConfig, ...JSON.parse(configData) };
+    const configData = await fs.readFile(systemConfigPath, 'utf-8');
+    return { ...defaultSystemConfig, ...JSON.parse(configData) };
   } catch {
     // 如果配置文件不存在，返回默认配置
-    return defaultConfig;
+    return defaultSystemConfig;
   }
 }
 
 /**
- * 写入配置文件
+ * 写入系统配置文件
  */
-async function writeConfig(config: AppConfig): Promise<void> {
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+async function writeSystemConfig(config: AppConfig): Promise<void> {
+  await fs.writeFile(systemConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+}
+
+/**
+ * 读取用户配置文件
+ */
+async function readUserConfig(): Promise<typeof defaultUserConfig> {
+  try {
+    const configData = await fs.readFile(userConfigPath, 'utf-8');
+    return { ...defaultUserConfig, ...JSON.parse(configData) };
+  } catch {
+    // 如果配置文件不存在，返回默认配置
+    return defaultUserConfig;
+  }
+}
+
+/**
+ * 写入用户配置文件
+ */
+async function writeUserConfig(config: typeof defaultUserConfig): Promise<void> {
+  await fs.writeFile(userConfigPath, JSON.stringify(config, null, 2), 'utf-8');
 }
 
 /**
@@ -84,14 +111,14 @@ router.get('/client', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取配置信息
+ * 获取用户配置信息（前端设置页面使用）
  * GET /api/config
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const config = await readConfig();
+    const config = await readUserConfig();
 
-    const response: ApiResponse<AppConfig> = {
+    const response: ApiResponse<typeof defaultUserConfig> = {
       success: true,
       data: config
     };
@@ -107,27 +134,26 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 更新配置信息
+ * 更新用户配置信息（前端设置页面使用）
  * PUT /api/config
  */
 router.put('/', async (req: Request, res: Response) => {
   try {
-    const newConfig: Partial<AppConfig> = req.body;
-    
+    const newConfig: Partial<typeof defaultUserConfig> = req.body;
+
     // 读取当前配置
-    const currentConfig = await readConfig();
-    
+    const currentConfig = await readUserConfig();
+
     // 合并配置
-    const updatedConfig: AppConfig = {
-      database: { ...currentConfig.database, ...newConfig.database },
-      websocket: { ...currentConfig.websocket, ...newConfig.websocket },
-      cleanup: { ...currentConfig.cleanup, ...newConfig.cleanup }
+    const updatedConfig = {
+      ...currentConfig,
+      ...newConfig
     };
-    
+
     // 写入配置文件
-    await writeConfig(updatedConfig);
-    
-    const response: ApiResponse<AppConfig> = {
+    await writeUserConfig(updatedConfig);
+
+    const response: ApiResponse<typeof defaultUserConfig> = {
       success: true,
       data: updatedConfig,
       message: '配置更新成功'
@@ -145,50 +171,36 @@ router.put('/', async (req: Request, res: Response) => {
 
 /**
  * 清理过期内容
- * POST /api/cleanup
+ * POST /api/config/cleanup
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/cleanup', async (req: Request, res: Response) => {
   try {
-    const { type, value }: CleanupRequest = req.body;
-    const config = await readConfig();
+    const { maxCount, beforeDate }: { maxCount?: number; beforeDate?: string } = req.body;
+    const userConfig = await readUserConfig();
     
     let deletedCount = 0;
     const originalCount = await ClipboardItemDAO.getCount();
-    
-    if (type === 'count' && typeof value === 'number') {
-      // 按数量清理：保留最新的 value 个项目
-      if (originalCount > value) {
-        deletedCount = await ClipboardItemDAO.cleanupByCount(value);
+
+    if (maxCount && typeof maxCount === 'number') {
+      // 按数量清理：保留最新的 maxCount 个项目
+      if (originalCount > maxCount) {
+        deletedCount = await ClipboardItemDAO.cleanupByCount(maxCount);
       }
-    } else if (type === 'date' && typeof value === 'string') {
+    } else if (beforeDate && typeof beforeDate === 'string') {
       // 按日期清理：删除指定日期之前的内容
-      const cutoffDate = new Date(value);
+      const cutoffDate = new Date(beforeDate);
       deletedCount = await ClipboardItemDAO.cleanupByDate(cutoffDate);
     } else {
-      // 使用配置文件中的清理策略
-      if (config.cleanup.enabled) {
-        if (config.cleanup.strategy === 'count' && config.cleanup.maxCount) {
-          if (originalCount > config.cleanup.maxCount) {
-            deletedCount = await ClipboardItemDAO.cleanupByCount(config.cleanup.maxCount);
-          }
-        } else if (config.cleanup.strategy === 'date' && config.cleanup.beforeDate) {
-          const cutoffDate = new Date(config.cleanup.beforeDate);
-          deletedCount = await ClipboardItemDAO.cleanupByDate(cutoffDate);
-        } else if (config.cleanup.strategy === 'both') {
-          // 先按日期清理
-          if (config.cleanup.beforeDate) {
-            const cutoffDate = new Date(config.cleanup.beforeDate);
-            deletedCount += await ClipboardItemDAO.cleanupByDate(cutoffDate);
-          }
-          
-          // 再按数量清理
-          if (config.cleanup.maxCount) {
-            const currentCount = await ClipboardItemDAO.getCount();
-            if (currentCount > config.cleanup.maxCount) {
-              deletedCount += await ClipboardItemDAO.cleanupByCount(config.cleanup.maxCount);
-            }
-          }
-        }
+      // 使用用户配置中的清理策略
+      // 先按日期清理
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - userConfig.autoCleanupDays);
+      deletedCount += await ClipboardItemDAO.cleanupByDate(cutoffDate);
+
+      // 再按数量清理
+      const currentCount = await ClipboardItemDAO.getCount();
+      if (currentCount > userConfig.maxItems) {
+        deletedCount += await ClipboardItemDAO.cleanupByCount(userConfig.maxItems);
       }
     }
     
@@ -214,10 +226,34 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取存储统计信息
- * GET /api/storage
+ * 清空所有内容
+ * DELETE /api/config/clear-all
  */
-router.get('/storage', async (req: Request, res: Response) => {
+router.delete('/clear-all', async (req: Request, res: Response) => {
+  try {
+    const deletedCount = await ClipboardItemDAO.deleteAll();
+
+    const response: ApiResponse<{ deletedCount: number }> = {
+      success: true,
+      data: { deletedCount },
+      message: `已清空所有内容，删除了 ${deletedCount} 个项目`
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('清空所有内容失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '清空所有内容失败'
+    });
+  }
+});
+
+/**
+ * 获取存储统计信息
+ * GET /api/config/stats
+ */
+router.get('/stats', async (req: Request, res: Response) => {
   try {
     const stats = await ClipboardItemDAO.getStats();
     
@@ -225,16 +261,14 @@ router.get('/storage', async (req: Request, res: Response) => {
       totalItems: number;
       textItems: number;
       imageItems: number;
-      totalSize: number;
-      formattedSize: string;
+      totalSize: string;
     }> = {
       success: true,
       data: {
         totalItems: stats.totalItems,
         textItems: stats.textItems,
         imageItems: stats.imageItems,
-        totalSize: stats.totalSize,
-        formattedSize: formatBytes(stats.totalSize)
+        totalSize: formatBytes(stats.totalSize)
       }
     };
 
@@ -260,5 +294,8 @@ function formatBytes(bytes: number): string {
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+// 导出用户配置读取函数供其他模块使用
+export { readUserConfig };
 
 export default router;

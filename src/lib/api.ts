@@ -152,6 +152,13 @@ class ApiClient {
     }>('/config/stats');
     return response.data;
   }
+
+  async clearAllItems(): Promise<{ deletedCount: number }> {
+    const response = await this.request<{ deletedCount: number }>('/config/clear-all', {
+      method: 'DELETE',
+    });
+    return response.data;
+  }
 }
 
 // 导出单例实例

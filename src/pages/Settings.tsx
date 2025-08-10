@@ -7,9 +7,6 @@ import { apiClient } from '../lib/api';
 interface AppConfig {
   maxItems: number;
   autoCleanupDays: number;
-  enableAutoSync: boolean;
-  syncInterval: number;
-  maxFileSize: number;
 }
 
 interface StorageStats {
@@ -23,10 +20,7 @@ export default function Settings() {
 
   const [config, setConfig] = useState<AppConfig>({
     maxItems: 1000,
-    autoCleanupDays: 30,
-    enableAutoSync: true,
-    syncInterval: 30,
-    maxFileSize: 5
+    autoCleanupDays: 30
   });
   const [storageStats, setStorageStats] = useState<StorageStats>({
     totalItems: 0,
@@ -37,16 +31,26 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
+  const [clearResult, setClearResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
 
 
   // 加载数据
   const loadData = useCallback(async () => {
     try {
       const [configData, statsData] = await Promise.all([
-        apiClient.getConfig().catch(() => config), // 如果获取配置失败，使用默认配置
-        apiClient.getStorageStats().catch(() => storageStats) // 如果获取统计失败，使用默认值
+        apiClient.getConfig().catch(() => ({
+          maxItems: 1000,
+          autoCleanupDays: 30
+        })), // 如果获取配置失败，使用默认配置
+        apiClient.getStorageStats().catch(() => ({
+          totalItems: 0,
+          textItems: 0,
+          imageItems: 0,
+          totalSize: '0 MB'
+        })) // 如果获取统计失败，使用默认值
       ]);
 
       // 类型转换：将API返回的配置转换为AppConfig类型
@@ -59,7 +63,7 @@ export default function Settings() {
     } finally {
       setLoading(false);
     }
-  }, [config, storageStats]);
+  }, []); // 移除依赖项，避免无限循环
 
   useEffect(() => {
     loadData();
@@ -125,6 +129,39 @@ export default function Settings() {
     }
   }, [config.autoCleanupDays, config.maxItems]);
 
+  // 清空所有内容
+  const handleClearAll = useCallback(async () => {
+    if (!window.confirm('确定要清空所有内容吗？此操作不可恢复！')) {
+      return;
+    }
+
+    setClearing(true);
+    setClearResult(null);
+
+    try {
+      const result = await apiClient.clearAllItems();
+
+      setClearResult({
+        success: true,
+        message: `已清空所有内容，删除了 ${result.deletedCount} 个项目`,
+        deletedCount: result.deletedCount
+      });
+
+      // 重新加载统计数据
+      const newStats = await apiClient.getStorageStats();
+      setStorageStats(newStats);
+    } catch (error) {
+      console.error('清空所有内容失败:', error);
+      setClearResult({
+        success: false,
+        message: '清空所有内容失败，请重试'
+      });
+    } finally {
+      setClearing(false);
+      setTimeout(() => setClearResult(null), 5000);
+    }
+  }, []);
+
   // 刷新数据
   const handleRefresh = useCallback(async () => {
     setLoading(true);
@@ -160,7 +197,7 @@ export default function Settings() {
                 设置
               </h1>
               <p className="text-gray-600">
-                管理设备、配置同步策略和清理规则
+                查看存储统计、配置清理策略和管理内容
               </p>
             </div>
           </div>
@@ -214,64 +251,7 @@ export default function Settings() {
 
 
 
-        {/* 同步配置 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center space-x-2">
-            <SettingsIcon className="w-5 h-5" />
-            <span>同步配置</span>
-          </h2>
-          
-          <div className="space-y-6">
-            {/* 自动同步 */}
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-900">自动同步</label>
-                <p className="text-sm text-gray-500">启用后将自动同步剪切板内容</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.enableAutoSync}
-                  onChange={(e) => setConfig(prev => ({ ...prev, enableAutoSync: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
 
-            {/* 同步间隔 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                同步间隔 (秒)
-              </label>
-              <input
-                type="number"
-                min="10"
-                max="300"
-                value={config.syncInterval}
-                onChange={(e) => setConfig(prev => ({ ...prev, syncInterval: parseInt(e.target.value) || 30 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-sm text-gray-500 mt-1">设置自动同步的时间间隔</p>
-            </div>
-
-            {/* 最大文件大小 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-900 mb-2">
-                最大文件大小 (MB)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="50"
-                value={config.maxFileSize}
-                onChange={(e) => setConfig(prev => ({ ...prev, maxFileSize: parseInt(e.target.value) || 5 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-sm text-gray-500 mt-1">限制上传图片的最大文件大小</p>
-            </div>
-          </div>
-        </div>
 
         {/* 清理策略 */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
@@ -313,44 +293,64 @@ export default function Settings() {
               <p className="text-sm text-gray-500 mt-1">自动删除超过指定天数的内容</p>
             </div>
 
-            {/* 立即清理按钮 */}
-            <div className="pt-4 border-t border-gray-200">
-              <button
-                onClick={handleCleanup}
-                disabled={cleaning}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
-                  cleaning
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{cleaning ? '清理中...' : '立即清理过期内容'}</span>
-              </button>
-              <p className="text-sm text-gray-500 mt-2">
-                将删除超过 {config.autoCleanupDays} 天的内容，并保留最新的 {config.maxItems} 项
-              </p>
+            {/* 操作按钮 */}
+            <div className="pt-4 border-t border-gray-200 space-y-4">
+              <div>
+                <button
+                  onClick={handleCleanup}
+                  disabled={cleaning}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                    cleaning
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-orange-600 text-white hover:bg-orange-700'
+                  }`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{cleaning ? '清理中...' : '立即清理过期内容'}</span>
+                </button>
+                <p className="text-sm text-gray-500 mt-2">
+                  将删除超过 {config.autoCleanupDays} 天的内容，并保留最新的 {config.maxItems} 项
+                </p>
+              </div>
+
+              <div>
+                <button
+                  onClick={handleClearAll}
+                  disabled={clearing}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                    clearing
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{clearing ? '清空中...' : '清空所有内容'}</span>
+                </button>
+                <p className="text-sm text-red-600 mt-2">
+                  ⚠️ 危险操作：将删除所有剪切板内容，此操作不可恢复！
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* 操作结果提示 */}
-        {(saveResult || cleanupResult) && (
+        {(saveResult || cleanupResult || clearResult) && (
           <div className={`rounded-lg p-4 mb-6 ${
-            (saveResult?.success || cleanupResult?.success)
+            (saveResult?.success || cleanupResult?.success || clearResult?.success)
               ? 'bg-green-50 border border-green-200'
               : 'bg-red-50 border border-red-200'
           }`}>
             <div className="flex items-center space-x-2">
-              {(saveResult?.success || cleanupResult?.success) ? (
+              {(saveResult?.success || cleanupResult?.success || clearResult?.success) ? (
                 <Check className="w-5 h-5 text-green-600" />
               ) : (
                 <AlertCircle className="w-5 h-5 text-red-600" />
               )}
               <span className={`font-medium ${
-                (saveResult?.success || cleanupResult?.success) ? 'text-green-800' : 'text-red-800'
+                (saveResult?.success || cleanupResult?.success || clearResult?.success) ? 'text-green-800' : 'text-red-800'
               }`}>
-                {saveResult?.message || cleanupResult?.message}
+                {saveResult?.message || cleanupResult?.message || clearResult?.message}
               </span>
             </div>
           </div>

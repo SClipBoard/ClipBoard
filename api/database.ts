@@ -385,18 +385,34 @@ export class ClipboardItemDAO {
    * 按数量清理（保留最新的count个）
    */
   static async cleanupByCount(keepCount: number): Promise<number> {
-    const sql = `
-      DELETE FROM clipboard_items 
-      WHERE id NOT IN (
-        SELECT id FROM (
-          SELECT id FROM clipboard_items 
-          ORDER BY created_at DESC 
-          LIMIT ?
-        ) as latest_items
-      )
-    `;
-    const result = await execute(sql, [keepCount]);
-    return result.affectedRows;
+    try {
+      // 确保 keepCount 是一个有效的正整数
+      const limit = Math.max(0, Math.floor(keepCount));
+
+      // 先获取要保留的最新项目的ID，使用字符串拼接避免参数问题
+      const keepItemsSql = `SELECT id FROM clipboard_items ORDER BY created_at DESC LIMIT ${limit}`;
+      const keepItems = await query<{ id: string }>(keepItemsSql);
+
+      if (keepItems.length === 0) {
+        // 如果没有要保留的项目，删除所有项目
+        const deleteAllSql = 'DELETE FROM clipboard_items';
+        const result = await execute(deleteAllSql);
+        return result.affectedRows;
+      }
+
+      // 删除不在保留列表中的项目
+      const keepIds = keepItems.map(item => item.id);
+
+      // 使用字符串拼接而不是参数化查询
+      const quotedIds = keepIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+      const deleteSql = `DELETE FROM clipboard_items WHERE id NOT IN (${quotedIds})`;
+
+      const result = await execute(deleteSql);
+      return result.affectedRows;
+    } catch (error) {
+      console.error('cleanupByCount 执行失败:', error);
+      throw error;
+    }
   }
   
   /**
@@ -445,6 +461,15 @@ export class ClipboardItemDAO {
     };
   }
   
+  /**
+   * 删除所有内容
+   */
+  static async deleteAll(): Promise<number> {
+    const sql = 'DELETE FROM clipboard_items';
+    const result = await execute(sql);
+    return result.affectedRows;
+  }
+
   /**
    * 清理过期内容
    */

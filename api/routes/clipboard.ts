@@ -3,8 +3,37 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 import { getWebSocketManager } from '../server.js';
+import { readUserConfig } from './config.js';
 
 const router: express.Router = express.Router();
+
+/**
+ * 自动清理超出最大条目数的内容
+ */
+async function autoCleanupIfNeeded(): Promise<void> {
+  try {
+    const userConfig = await readUserConfig();
+    const currentCount = await ClipboardItemDAO.getCount();
+
+    console.log(`自动清理检查: 当前条目数=${currentCount}, 最大条目数=${userConfig.maxItems}`);
+
+    if (currentCount > userConfig.maxItems) {
+      // 从最旧的开始删除，直到数量小于等于最大条目数
+      const deleteCount = currentCount - userConfig.maxItems;
+      console.log(`开始自动清理，需要删除 ${deleteCount} 个最旧的项目`);
+
+      const deletedCount = await ClipboardItemDAO.cleanupByCount(userConfig.maxItems);
+
+      const newCount = await ClipboardItemDAO.getCount();
+      console.log(`自动清理完成，实际删除了 ${deletedCount} 个项目，当前剩余 ${newCount} 个项目`);
+    } else {
+      console.log('无需清理，当前条目数未超过限制');
+    }
+  } catch (error) {
+    console.error('自动清理失败:', error);
+    // 清理失败不影响主要功能
+  }
+}
 
 /**
  * 获取剪切板内容列表
@@ -122,6 +151,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     // 使用数据库DAO创建项目
     const newItem = await ClipboardItemDAO.create(newItemData);
+
+    // 自动清理：检查是否超过最大条目数（在创建新项目后执行）
+    await autoCleanupIfNeeded();
 
     // 通过WebSocket广播新内容
     const wsManager = getWebSocketManager();
