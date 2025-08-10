@@ -1,20 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, FileText, Image, File, X } from 'lucide-react';
 
 interface SearchFilterProps {
   onSearch: (query: string) => void;
   onTypeFilter: (type: 'all' | 'text' | 'image' | 'file') => void;
   currentType: 'all' | 'text' | 'image' | 'file';
+  currentSearch?: string; // 当前搜索查询，用于同步显示
 }
 
 export default function SearchFilter({
   onSearch,
   onTypeFilter,
-  currentType
+  currentType,
+  currentSearch = ''
 }: SearchFilterProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(currentSearch);
   const [showFilters, setShowFilters] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+
+  // 同步外部搜索状态到内部状态
+  useEffect(() => {
+    setSearchQuery(currentSearch);
+  }, [currentSearch]);
 
   // 移除自动搜索，只保留手动搜索
 

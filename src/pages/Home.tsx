@@ -51,7 +51,7 @@ export default function Home() {
       
       const response = await apiClient.getClipboardItems(params);
 
-      if (response && response.data) {
+      if (response && Array.isArray(response.data)) {
         if (append) {
           setItems(prev => [...prev, ...response.data]);
         } else {
@@ -60,8 +60,9 @@ export default function Home() {
 
         setTotalItems(response.total || 0);
         setHasMore(response.data.length === itemsPerPage);
-      } else if (response && response.data === null) {
-        // 只有在明确返回空数据时才清空
+      } else {
+        // 处理无效响应或错误情况
+        console.warn('API响应格式异常:', response);
         if (!append) {
           setItems([]);
           setTotalItems(0);
@@ -89,46 +90,15 @@ export default function Home() {
 
   // 筛选条件变化时重新加载（移除searchQuery的自动触发）
   useEffect(() => {
+    console.log('类型筛选变化，重新加载数据，typeFilter:', typeFilter);
     setCurrentPage(1);
     loadItems(1);
-  }, [typeFilter, loadItems]);
+  }, [typeFilter]); // 移除loadItems依赖，避免循环依赖
 
 
 
-  // WebSocket连接管理
+  // WebSocket连接管理 - 只在组件挂载时建立连接
   useEffect(() => {
-    // 设置WebSocket事件处理器
-    wsManager.setHandlers({
-      onConnect: () => {
-        setIsConnected(true);
-        console.log('WebSocket已连接');
-        // 连接建立后自动请求同步所有内容
-        wsManager.requestSync();
-      },
-      onDisconnect: () => {
-        setIsConnected(false);
-        console.log('WebSocket已断开');
-      },
-      onNewItem: (newItem) => {
-        setItems(prev => [newItem, ...prev]);
-        setTotalItems(prev => prev + 1);
-      },
-      onDeleteItem: (itemId) => {
-        setItems(prev => prev.filter(item => item.id !== itemId));
-        setTotalItems(prev => prev - 1);
-      },
-      onSync: (syncItems) => {
-        // 只有在没有搜索查询时才同步数据，避免覆盖搜索结果
-        if (!searchQuery) {
-          setItems(syncItems);
-          setTotalItems(syncItems.length);
-        }
-      },
-      onError: (error) => {
-        console.error('WebSocket错误:', error);
-      }
-    });
-
     // 立即检查连接状态，如果未连接则尝试连接
     if (!wsManager.isConnected()) {
       // 立即尝试连接，不等待
@@ -143,7 +113,48 @@ export default function Home() {
     return () => {
       wsManager.disconnect();
     };
-  }, [searchQuery]);
+  }, []); // 空依赖数组，只在组件挂载时执行
+
+  // WebSocket事件处理器 - 根据搜索状态动态更新
+  useEffect(() => {
+    // 设置WebSocket事件处理器
+    wsManager.setHandlers({
+      onConnect: () => {
+        setIsConnected(true);
+        console.log('WebSocket已连接');
+        // 只有在没有搜索查询和类型筛选时才自动同步
+        if (!searchQuery && typeFilter === 'all') {
+          wsManager.requestSync();
+        }
+      },
+      onDisconnect: () => {
+        setIsConnected(false);
+        console.log('WebSocket已断开');
+      },
+      onNewItem: (newItem) => {
+        // 只有在没有搜索查询时才添加新项目，避免干扰搜索结果
+        if (!searchQuery && typeFilter === 'all') {
+          setItems(prev => [newItem, ...prev]);
+          setTotalItems(prev => prev + 1);
+        }
+      },
+      onDeleteItem: (itemId) => {
+        // 删除操作总是执行，因为用户可能在搜索结果中删除项目
+        setItems(prev => prev.filter(item => item.id !== itemId));
+        setTotalItems(prev => prev - 1);
+      },
+      onSync: (syncItems) => {
+        // 只有在没有搜索查询和类型筛选时才同步数据，避免覆盖搜索结果
+        if (!searchQuery && typeFilter === 'all') {
+          setItems(syncItems);
+          setTotalItems(syncItems.length);
+        }
+      },
+      onError: (error) => {
+        console.error('WebSocket错误:', error);
+      }
+    });
+  }, [searchQuery, typeFilter]);
 
   // 处理复制
   const handleCopy = useCallback((content: string) => {
@@ -231,6 +242,7 @@ export default function Home() {
           }}
           onTypeFilter={setTypeFilter}
           currentType={typeFilter}
+          currentSearch={searchQuery}
         />
 
         {/* 操作按钮 */}

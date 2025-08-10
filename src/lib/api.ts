@@ -49,11 +49,13 @@ class ApiClient {
       }
     });
 
-    const response = await this.request<PaginatedResponse<ClipboardItem>>(
-      `/clipboard?${searchParams.toString()}`
-    );
+    const response = await this.request<{
+      data: ClipboardItem[];
+      total: number;
+    }>(`/clipboard?${searchParams.toString()}`);
 
-    return response.data as PaginatedResponse<ClipboardItem>;
+    // response 已经是完整的API响应，包含 success, data, total 等字段
+    return response as unknown as PaginatedResponse<ClipboardItem>;
   }
 
   async getClipboardItem(id: string): Promise<ClipboardItem> {
