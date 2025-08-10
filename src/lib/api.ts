@@ -52,8 +52,8 @@ class ApiClient {
     const response = await this.request<PaginatedResponse<ClipboardItem>>(
       `/clipboard?${searchParams.toString()}`
     );
-    
-    return response.data;
+
+    return response;
   }
 
   async getClipboardItem(id: string): Promise<ClipboardItem> {

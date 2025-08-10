@@ -71,6 +71,9 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
             <div className="hidden text-sm text-gray-500 mt-2">
               图片加载失败
             </div>
+            <div className="text-xs text-gray-400 mt-2 italic">
+              💡 右键点击图片进行复制
+            </div>
           </div>
         </div>
       );

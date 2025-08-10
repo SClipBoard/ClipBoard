@@ -27,7 +27,11 @@ export default function Home() {
   const itemsPerPage = 20;
 
   // 加载剪切板内容
-  const loadItems = useCallback(async (page: number = 1, append: boolean = false) => {
+  const loadItems = useCallback(async (
+    page: number = 1,
+    append: boolean = false,
+    customSearch?: string
+  ) => {
     try {
       const params: PaginationParams & {
         type?: 'text' | 'image' | 'file';
@@ -37,26 +41,28 @@ export default function Home() {
         page,
         limit: itemsPerPage
       };
-      
+
       if (typeFilter !== 'all') {
         params.type = typeFilter;
       }
-      if (searchQuery) {
-        params.search = searchQuery;
+      // 使用传入的搜索参数或当前状态的搜索查询
+      const currentSearch = customSearch !== undefined ? customSearch : searchQuery;
+      if (currentSearch) {
+        params.search = currentSearch;
       }
       if (deviceFilter) {
         params.deviceId = deviceFilter;
       }
       
       const response = await apiClient.getClipboardItems(params);
-      
+
       if (response && response.data) {
         if (append) {
           setItems(prev => [...prev, ...response.data]);
         } else {
           setItems(response.data);
         }
-        
+
         setTotalItems(response.total || 0);
         setHasMore(response.data.length === itemsPerPage);
       } else if (response && response.data === null) {
@@ -71,7 +77,7 @@ export default function Home() {
       console.error('加载剪切板内容失败:', error);
       // 出错时不清空现有数据，保持用户体验
     }
-  }, [searchQuery, typeFilter, deviceFilter]);
+  }, [typeFilter, deviceFilter]);
 
   // 加载设备列表
   const loadDevices = useCallback(async () => {
@@ -97,11 +103,13 @@ export default function Home() {
     init();
   }, [loadItems, loadDevices]);
 
-  // 筛选条件变化时重新加载
+  // 筛选条件变化时重新加载（移除searchQuery的自动触发）
   useEffect(() => {
     setCurrentPage(1);
     loadItems(1);
-  }, [searchQuery, typeFilter, deviceFilter, loadItems]);
+  }, [typeFilter, deviceFilter, loadItems]);
+
+
 
   // WebSocket连接管理
   useEffect(() => {
@@ -126,8 +134,11 @@ export default function Home() {
         setTotalItems(prev => prev - 1);
       },
       onSync: (syncItems) => {
-        setItems(syncItems);
-        setTotalItems(syncItems.length);
+        // 只有在没有搜索查询时才同步数据，避免覆盖搜索结果
+        if (!searchQuery) {
+          setItems(syncItems);
+          setTotalItems(syncItems.length);
+        }
       },
       onError: (error) => {
         console.error('WebSocket错误:', error);
@@ -233,7 +244,12 @@ export default function Home() {
 
         {/* 搜索和筛选 */}
         <SearchFilter
-          onSearch={setSearchQuery}
+          onSearch={(query) => {
+            setSearchQuery(query);
+            setCurrentPage(1);
+            // 使用新的搜索参数立即加载数据
+            loadItems(1, false, query);
+          }}
           onTypeFilter={setTypeFilter}
           onDeviceFilter={setDeviceFilter}
           devices={devices}

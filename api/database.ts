@@ -113,6 +113,21 @@ async function ensureFileFields(): Promise<void> {
       await execute('ALTER TABLE clipboard_items MODIFY COLUMN type ENUM(\'text\', \'image\', \'file\') NOT NULL COMMENT \'内容类型：文本、图片或文件\'');
     }
     
+    // 检查并确保content字段为LONGTEXT类型
+    const contentColumn = columns.find(col => col.Field === 'content');
+    if (contentColumn) {
+      const currentType = contentColumn.Type.toLowerCase();
+      if (!currentType.includes('longtext')) {
+        console.log('更新content字段类型为LONGTEXT以支持大尺寸图片');
+        await execute('ALTER TABLE clipboard_items MODIFY COLUMN content LONGTEXT NOT NULL COMMENT \'剪切板内容\'');
+        console.log('content字段已更新为LONGTEXT类型');
+      } else {
+        console.log('content字段已是LONGTEXT类型');
+      }
+    } else {
+      console.warn('未找到content字段');
+    }
+    
     console.log('文件字段检查完成');
   } catch (error) {
     console.error('检查文件字段时出错:', error);
@@ -278,7 +293,9 @@ export class ClipboardItemDAO {
     }
     
     if (search) {
-      whereClause += ' AND content LIKE ?';
+      // 只在文本类型中搜索内容，在所有类型中搜索文件名
+      whereClause += ' AND ((type = "text" AND content LIKE ?) OR (file_name IS NOT NULL AND file_name LIKE ?))';
+      queryParams.push(`%${search}%`);
       queryParams.push(`%${search}%`);
     }
     
@@ -294,19 +311,17 @@ export class ClipboardItemDAO {
     
     // 获取数据（使用字符串拼接处理LIMIT和OFFSET，避免MySQL参数化查询问题）
     const dataSql = `
-      SELECT id, type, content, device_id as deviceId, 
+      SELECT id, type, content, device_id as deviceId,
              file_name as fileName, file_size as fileSize, mime_type as mimeType,
              created_at as createdAt, updated_at as updatedAt
-      FROM clipboard_items 
-      ${whereClause} 
-      ORDER BY created_at DESC 
+      FROM clipboard_items
+      ${whereClause}
+      ORDER BY created_at DESC
       LIMIT ${limitInt} OFFSET ${offsetInt}
     `;
-    
 
-    
     const items = await query<ClipboardItem>(dataSql, queryParams);
-    
+
     return { items, total };
   }
   

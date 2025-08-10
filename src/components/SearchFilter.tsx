@@ -21,26 +21,38 @@ export default function SearchFilter({
 }: SearchFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // 防抖搜索
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onSearch(searchQuery);
-    }, 300);
+  // 移除自动搜索，只保留手动搜索
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, onSearch]);
+  // 处理回车键搜索
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  // 执行搜索
+  const handleSearch = () => {
+    setIsSearching(true);
+    onSearch(searchQuery);
+    setTimeout(() => setIsSearching(false), 500);
+  };
 
   const handleClearSearch = () => {
     setSearchQuery('');
+    setIsSearching(true);
     onSearch('');
+    setTimeout(() => setIsSearching(false), 500);
   };
 
   const handleClearFilters = () => {
     onTypeFilter('all');
     onDeviceFilter(null);
     setSearchQuery('');
+    setIsSearching(true);
     onSearch('');
+    setTimeout(() => setIsSearching(false), 500);
   };
 
   const hasActiveFilters = currentType !== 'all' || currentDevice !== null || searchQuery.length > 0;
@@ -50,23 +62,33 @@ export default function SearchFilter({
       {/* 搜索框 */}
       <div className="relative mb-4">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+          <Search className={`h-5 w-5 ${isSearching ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`} />
         </div>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyPress={handleKeyPress}
           className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-          placeholder="搜索剪切板内容..."
+          placeholder="搜索剪切板内容（按回车搜索）..."
         />
-        {searchQuery && (
+        <div className="absolute inset-y-0 right-0 flex items-center">
+          {searchQuery && (
+            <button
+              onClick={handleClearSearch}
+              className="pr-2 flex items-center"
+            >
+              <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+            </button>
+          )}
           <button
-            onClick={handleClearSearch}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={handleSearch}
+            className="pr-3 flex items-center text-blue-600 hover:text-blue-800"
+            title="搜索"
           >
-            <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+            <Search className={`h-5 w-5 ${isSearching ? 'animate-pulse' : ''}`} />
           </button>
-        )}
+        </div>
       </div>
 
       {/* 筛选器切换按钮 */}

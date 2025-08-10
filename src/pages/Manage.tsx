@@ -28,7 +28,11 @@ export default function Manage() {
   const itemsPerPage = 50;
 
   // 加载剪切板内容
-  const loadItems = useCallback(async (page: number = 1, append: boolean = false) => {
+  const loadItems = useCallback(async (
+    page: number = 1,
+    append: boolean = false,
+    customSearch?: string
+  ) => {
     try {
       const params: PaginationParams & {
         type?: 'text' | 'image';
@@ -38,12 +42,14 @@ export default function Manage() {
         page,
         limit: itemsPerPage
       };
-      
+
       if (typeFilter !== 'all') {
         params.type = typeFilter;
       }
-      if (searchQuery) {
-        params.search = searchQuery;
+      // 使用传入的搜索参数或当前状态的搜索查询
+      const currentSearch = customSearch !== undefined ? customSearch : searchQuery;
+      if (currentSearch) {
+        params.search = currentSearch;
       }
       if (deviceFilter) {
         params.deviceId = deviceFilter;
@@ -63,7 +69,7 @@ export default function Manage() {
     } catch (error) {
       console.error('加载剪切板内容失败:', error);
     }
-  }, [searchQuery, typeFilter, deviceFilter]);
+  }, [typeFilter, deviceFilter]);
 
   // 加载设备列表
   const loadDevices = useCallback(async () => {
@@ -89,11 +95,11 @@ export default function Manage() {
     init();
   }, [loadItems, loadDevices]);
 
-  // 筛选条件变化时重新加载
+  // 筛选条件变化时重新加载（移除searchQuery的自动触发）
   useEffect(() => {
     setCurrentPage(1);
     loadItems(1);
-  }, [searchQuery, typeFilter, deviceFilter, loadItems]);
+  }, [typeFilter, deviceFilter, loadItems]);
 
   // 全选/取消全选
   const handleSelectAll = useCallback(() => {
@@ -325,8 +331,15 @@ export default function Manage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  // 立即触发搜索
+                  setCurrentPage(1);
+                  loadItems(1, false, searchQuery);
+                }
+              }}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="搜索剪切板内容..."
+              placeholder="搜索剪切板内容（按回车搜索）..."
             />
           </div>
 

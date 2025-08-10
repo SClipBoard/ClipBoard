@@ -17,8 +17,9 @@ router.get('/', async (req: Request, res: Response) => {
       limit = 20,
       type,
       search,
-      filter
-    } = req.query as PaginationParams;
+      filter,
+      deviceId
+    } = req.query as PaginationParams & { deviceId?: string };
 
     // 处理特殊筛选
     let queryType = type as 'text' | 'image' | undefined;
@@ -40,12 +41,17 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     // 使用数据库DAO获取数据
-    const result = await ClipboardItemDAO.getItems({
+    const queryParams = {
       page: Math.max(1, Number(page)),
       limit: queryLimit,
       type: queryType,
-      search: typeof search === 'string' ? search : undefined
-    });
+      search: typeof search === 'string' ? search : undefined,
+      deviceId: typeof deviceId === 'string' ? deviceId : undefined
+    };
+
+    console.log('传递给DAO的参数:', queryParams);
+
+    const result = await ClipboardItemDAO.getItems(queryParams);
 
     const response: ApiResponse<ClipboardItem[]> = {
       success: true,

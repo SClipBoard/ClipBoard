@@ -1,6 +1,6 @@
 # TODO:
 
-- [x] 25: 修改api/server.ts，创建全局WebSocket管理器实例并正确导出 (priority: High)
-- [x] 26: 修改api/routes/clipboard.ts，修复WebSocket管理器的导入问题 (priority: High)
-- [x] 27: 确保前端WebSocket连接能正确接收广播消息 (priority: Medium)
-- [x] 28: 修复刷新按钮点击后内容消失的问题 (priority: Medium)
+- [x] 38: 移除Home组件中的防抖搜索useEffect和debouncedSearchQuery状态 (priority: High)
+- [x] 39: 修改loadItems函数，直接使用searchQuery而不是debouncedSearchQuery (priority: High)
+- [x] 40: 移除搜索查询变化时的自动重新加载，保留类型和设备筛选的自动触发 (priority: High)
+- [x] 41: 测试手动搜索功能，确保只有回车键和筛选器能触发搜索 (priority: Medium)
