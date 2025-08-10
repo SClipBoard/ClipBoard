@@ -22,7 +22,7 @@ class WebSocketManager {
   private isConnecting = false;
   private deviceId: string;
   private autoConnect = true;
-  private initialConnectDelay = 1000; // 初始连接延迟
+  private initialConnectDelay = 100; // 初始连接延迟
 
   constructor(deviceId: string) {
     this.deviceId = deviceId;

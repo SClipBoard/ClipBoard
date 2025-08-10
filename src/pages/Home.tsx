@@ -134,15 +134,14 @@ export default function Home() {
       }
     });
 
-    // 不需要手动调用connect()，构造函数中已经有延迟自动连接
-    // 如果需要立即连接，可以检查连接状态
+    // 立即检查连接状态，如果未连接则尝试连接
     if (!wsManager.isConnected()) {
-      // 给构造函数中的延迟连接一些时间，如果还没连接则手动连接
+      // 立即尝试连接，不等待
       setTimeout(() => {
         if (!wsManager.isConnected()) {
           wsManager.connect();
         }
-      }, 2000);
+      }, 200); // 只等待200ms确保WebSocket管理器初始化完成
     }
 
     // 清理函数
