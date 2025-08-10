@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { Upload as UploadIcon, Image, FileText, File, X, Check, AlertCircle } from 'lucide-react';
+import { Upload as UploadIcon, Image, FileText, File, X, Check, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 import { deviceId } from '../lib/websocket';
 import type { ClipboardItem } from '../../shared/types';
@@ -265,6 +266,15 @@ export default function Upload() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* 页面标题 */}
         <div className="mb-8">
+          <div className="flex items-center space-x-4 mb-4">
+            <Link
+              to="/"
+              className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>返回主页</span>
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             上传内容
           </h1>

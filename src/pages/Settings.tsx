@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings as SettingsIcon, Save, RefreshCw, AlertCircle, Check, Database, Clock, HardDrive, Trash2 } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RefreshCw, AlertCircle, Check, Database, Clock, HardDrive, Trash2, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 
 
@@ -146,13 +147,22 @@ export default function Settings() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* 页面标题 */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              设置
-            </h1>
-            <p className="text-gray-600">
-              管理设备、配置同步策略和清理规则
-            </p>
+          <div className="flex items-center space-x-4">
+            <Link
+              to="/"
+              className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>返回主页</span>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                设置
+              </h1>
+              <p className="text-gray-600">
+                管理设备、配置同步策略和清理规则
+              </p>
+            </div>
           </div>
           <button
             onClick={handleRefresh}

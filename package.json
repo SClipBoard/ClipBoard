@@ -19,7 +19,8 @@
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "preview": "vite preview",
     "db:init": "node -e \"console.log('请手动执行 migrations/001_init_database.sql 文件中的SQL语句来初始化数据库')\"",
-    "clean": "rimraf dist node_modules/.vite"
+    "clean": "rimraf dist node_modules/.vite",
+    "packge": "node ./scripts/pack.mjs"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",

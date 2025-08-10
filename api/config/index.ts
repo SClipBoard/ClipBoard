@@ -1,7 +1,45 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { existsSync, writeFileSync } from 'node:fs';
 
-// 加载环境变量
+// 加载环境变量（如果 .env 不存在则自动创建默认配置）
+const envPath = path.resolve(process.cwd(), '.env');
+if (!existsSync(envPath)) {
+  const defaultEnv = `NODE_ENV=production
+PORT=3001
+WS_PORT=3002
+CORS_ORIGIN=*
+
+DB_HOST=
+DB_PORT=3306
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+
+LOG_LEVEL=info
+LOG_FILE=logs/app.log
+UPLOAD_DIR=uploads
+`;
+  try {
+    writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
+    console.log('\n=== 配置文件已创建 ===');
+    console.log('已在以下位置创建默认配置文件：', envPath);
+    console.log('\n请根据您的实际环境修改以下配置项：');
+    console.log('- DB_HOST: 数据库主机地址');
+    console.log('- DB_PORT: 数据库端口');
+    console.log('- DB_USER: 数据库用户名');
+    console.log('- DB_PASSWORD: 数据库密码');
+    console.log('- DB_NAME: 数据库名称');
+    console.log('- JWT_SECRET: 请设置一个安全的密钥');
+    console.log('\n配置完成后，请重新启动应用程序。');
+    console.log('======================\n');
+    process.exit(0);
+  } catch (e) {
+    console.error('无法创建 .env 文件，请手动创建:', envPath, e);
+    process.exit(1);
+  }
+}
+
 dotenv.config();
 
 export interface DatabaseConfig {

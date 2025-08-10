@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ClipboardItem from '../components/ClipboardItem';
 import SearchFilter from '../components/SearchFilter';
@@ -262,6 +262,13 @@ export default function Home() {
               <RefreshCw className="w-4 h-4" />
               <span>刷新</span>
             </button>
+            <Link
+              to="/settings"
+              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+            >
+              <Settings className="w-4 h-4" />
+              <span>设置</span>
+            </Link>
           </div>
 
           <div className="text-sm text-gray-500">

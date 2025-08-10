@@ -54,13 +54,43 @@ async function writeConfig(config: AppConfig): Promise<void> {
 }
 
 /**
+ * 获取客户端配置信息（仅包含前端需要的配置）
+ * GET /api/config/client
+ */
+router.get('/client', async (req: Request, res: Response) => {
+  try {
+    // 从环境变量获取WebSocket端口
+    const wsPort = process.env.WS_PORT || '3002';
+
+    const clientConfig = {
+      websocket: {
+        port: parseInt(wsPort, 10)
+      }
+    };
+
+    const response: ApiResponse<typeof clientConfig> = {
+      success: true,
+      data: clientConfig
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('获取客户端配置失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取客户端配置失败'
+    });
+  }
+});
+
+/**
  * 获取配置信息
  * GET /api/config
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const config = await readConfig();
-    
+
     const response: ApiResponse<AppConfig> = {
       success: true,
       data: config

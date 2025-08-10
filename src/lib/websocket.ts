@@ -23,13 +23,14 @@ class WebSocketManager {
   private deviceId: string;
   private autoConnect = true;
   private initialConnectDelay = 100; // 初始连接延迟
+  private wsPort: number | null = null; // 动态获取的WebSocket端口
 
   constructor(deviceId: string) {
     this.deviceId = deviceId;
     // 延迟自动连接，确保页面完全加载
-    setTimeout(() => {
+    setTimeout(async () => {
       if (this.autoConnect) {
-        this.connect();
+        await this.connect();
       }
     }, this.initialConnectDelay);
   }
@@ -42,52 +43,79 @@ class WebSocketManager {
   }
 
   /**
+   * 获取WebSocket配置
+   */
+  private async fetchWebSocketConfig(): Promise<number> {
+    try {
+      const response = await fetch('/api/config/client');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data?.websocket?.port) {
+          return result.data.websocket.port;
+        }
+      }
+    } catch (error) {
+      console.warn('获取WebSocket配置失败，使用默认配置:', error);
+    }
+
+    // 如果获取配置失败，使用环境变量或默认值
+    return parseInt(import.meta.env.VITE_WS_PORT || '3002', 10);
+  }
+
+  /**
    * 生成WebSocket连接URL
    */
-  private generateWebSocketUrl(): string {
+  private async generateWebSocketUrl(): Promise<string> {
     // 获取当前页面的协议和主机名
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const hostname = window.location.hostname;
-    
-    // WebSocket端口配置，支持环境变量
-    const wsPort = import.meta.env.VITE_WS_PORT || '8080';
-    
-    // 在开发环境中，如果hostname是localhost或127.0.0.1，使用配置的端口
-    // 在生产环境中，根据实际部署情况调整
-    let wsUrl: string;
-    
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      // 开发环境
-      wsUrl = `${protocol}//${hostname}:${wsPort}`;
-    } else {
-      // 生产环境，可能需要根据实际部署调整
-      // 如果WebSocket服务器在同一域名的不同端口
-      wsUrl = `${protocol}//${hostname}:${wsPort}`;
-      
-      // 如果WebSocket服务器在同一域名的相同端口（通过代理）
-      // wsUrl = `${protocol}//${hostname}${window.location.port ? ':' + window.location.port : ''}`;
+
+    // 动态获取WebSocket端口配置
+    if (this.wsPort === null) {
+      this.wsPort = await this.fetchWebSocketConfig();
     }
-    
+
+    // 构建WebSocket URL
+    const wsUrl = `${protocol}//${hostname}:${this.wsPort}`;
+
     return `${wsUrl}?deviceId=${this.deviceId}`;
   }
 
   /**
    * 连接WebSocket服务器
    */
-  connect(): void {
+  async connect(): Promise<void> {
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       console.log('WebSocket已连接或正在连接中，跳过重复连接');
       return;
     }
 
     this.isConnecting = true;
-    const wsUrl = this.generateWebSocketUrl();
-    
-    console.log(`尝试连接WebSocket服务器: ${wsUrl}`);
-    
+
+    try {
+      const wsUrl = await this.generateWebSocketUrl();
+      console.log(`尝试连接WebSocket服务器: ${wsUrl}`);
+
+      this.createWebSocketConnection(wsUrl);
+    } catch (error) {
+      console.error('生成WebSocket URL失败:', error);
+      this.isConnecting = false;
+      this.handlers.onError?.('无法生成WebSocket连接地址');
+
+      // 生成URL失败也尝试重连
+      if (this.autoConnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.scheduleReconnect();
+      }
+    }
+  }
+
+  /**
+   * 创建WebSocket连接
+   */
+  private createWebSocketConnection(wsUrl: string): void {
     try {
       this.ws = new WebSocket(wsUrl);
-      
+
       // 设置连接超时
       const connectTimeout = setTimeout(() => {
         if (this.isConnecting) {
@@ -97,7 +125,7 @@ class WebSocketManager {
             this.ws.close();
           }
           this.handlers.onError?.('连接超时，请检查网络连接');
-          
+
           // 连接超时也尝试重连
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.scheduleReconnect();
@@ -195,25 +223,26 @@ class WebSocketManager {
   /**
    * 手动重连
    */
-  reconnect(): void {
+  async reconnect(): Promise<void> {
     console.log('手动重连WebSocket...');
     this.autoConnect = true; // 重新启用自动连接
     this.reconnectAttempts = 0; // 重置重连次数
-    
+    this.wsPort = null; // 重置端口，重新获取配置
+
     // 先断开现有连接
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    
+
     // 清除重连定时器
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    
+
     // 立即尝试连接
-    this.connect();
+    await this.connect();
   }
 
   /**
@@ -356,9 +385,9 @@ class WebSocketManager {
     
     console.log(`${delay}ms后尝试第${this.reconnectAttempts}次重连...`);
     
-    this.reconnectTimer = setTimeout(() => {
+    this.reconnectTimer = setTimeout(async () => {
       if (this.autoConnect && this.reconnectAttempts <= this.maxReconnectAttempts) {
-        this.connect();
+        await this.connect();
       }
     }, delay);
   }
