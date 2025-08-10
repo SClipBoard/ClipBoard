@@ -49,8 +49,6 @@ router.get('/', async (req: Request, res: Response) => {
       deviceId: typeof deviceId === 'string' ? deviceId : undefined
     };
 
-    console.log('传递给DAO的参数:', queryParams);
-
     const result = await ClipboardItemDAO.getItems(queryParams);
 
     const response: ApiResponse<ClipboardItem[]> = {
