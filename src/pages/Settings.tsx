@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings as SettingsIcon, Smartphone, Trash2, Save, RefreshCw, AlertCircle, Check, X, Database, Clock, HardDrive } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RefreshCw, AlertCircle, Check, Database, Clock, HardDrive, Trash2 } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import { deviceId } from '../lib/websocket';
-import type { Device } from '../../shared/types';
+
 
 interface AppConfig {
   maxItems: number;
@@ -20,7 +19,7 @@ interface StorageStats {
 }
 
 export default function Settings() {
-  const [devices, setDevices] = useState<Device[]>([]);
+
   const [config, setConfig] = useState<AppConfig>({
     maxItems: 1000,
     autoCleanupDays: 30,
@@ -39,18 +38,16 @@ export default function Settings() {
   const [cleaning, setCleaning] = useState(false);
   const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
 
   // 加载数据
   const loadData = useCallback(async () => {
     try {
-      const [deviceList, configData, statsData] = await Promise.all([
-        apiClient.getDevices(),
+      const [configData, statsData] = await Promise.all([
         apiClient.getConfig().catch(() => config), // 如果获取配置失败，使用默认配置
         apiClient.getStorageStats().catch(() => storageStats) // 如果获取统计失败，使用默认值
       ]);
-      
-      setDevices(deviceList);
+
       // 类型转换：将API返回的配置转换为AppConfig类型
       if (configData && typeof configData === 'object') {
         setConfig(configData as AppConfig);
@@ -90,16 +87,7 @@ export default function Settings() {
     }
   }, [config]);
 
-  // 删除设备
-  const handleDeleteDevice = useCallback(async (deviceIdToDelete: string) => {
-    try {
-      await apiClient.deleteDevice(deviceIdToDelete);
-      setDevices(prev => prev.filter(device => device.deviceId !== deviceIdToDelete));
-      setShowDeleteConfirm(null);
-    } catch (error) {
-      console.error('删除设备失败:', error);
-    }
-  }, []);
+
 
   // 清理过期内容
   const handleCleanup = useCallback(async () => {
@@ -214,94 +202,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 设备管理 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center space-x-2">
-            <Smartphone className="w-5 h-5" />
-            <span>设备管理</span>
-          </h2>
-          
-          {devices.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Smartphone className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p>暂无设备信息</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {devices.map((device) => (
-                <div
-                  key={device.deviceId}
-                  className={`flex items-center justify-between p-4 rounded-lg border ${
-                    device.deviceId === deviceId
-                      ? 'bg-blue-50 border-blue-200'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-3 h-3 rounded-full ${
-                      device.isConnected ? 'bg-green-500' : 'bg-gray-400'
-                    }`} />
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {device.deviceName}
-                        </span>
-                        {device.deviceId === deviceId && (
-                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                            当前设备
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        ID: {device.deviceId.slice(-12)} • 
-                        最后同步: {new Date(device.lastSync).toLocaleString('zh-CN')}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      device.isConnected
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {device.isConnected ? '在线' : '离线'}
-                    </span>
-                    
-                    {device.deviceId !== deviceId && (
-                      showDeleteConfirm === device.deviceId ? (
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => handleDeleteDevice(device.deviceId)}
-                            className="p-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors duration-200"
-                            title="确认删除"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(null)}
-                            className="p-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors duration-200"
-                            title="取消删除"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowDeleteConfirm(device.deviceId)}
-                          className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-100 rounded transition-colors duration-200"
-                          title="删除设备"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+
 
         {/* 同步配置 */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">

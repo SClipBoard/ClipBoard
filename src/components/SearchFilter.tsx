@@ -1,23 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search, Filter, FileText, Image, File, X } from 'lucide-react';
-import type { Device } from '../../shared/types';
 
 interface SearchFilterProps {
   onSearch: (query: string) => void;
   onTypeFilter: (type: 'all' | 'text' | 'image' | 'file') => void;
-  onDeviceFilter: (deviceId: string | null) => void;
-  devices: Device[];
   currentType: 'all' | 'text' | 'image' | 'file';
-  currentDevice: string | null;
 }
 
 export default function SearchFilter({
   onSearch,
   onTypeFilter,
-  onDeviceFilter,
-  devices,
-  currentType,
-  currentDevice
+  currentType
 }: SearchFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -48,14 +41,13 @@ export default function SearchFilter({
 
   const handleClearFilters = () => {
     onTypeFilter('all');
-    onDeviceFilter(null);
     setSearchQuery('');
     setIsSearching(true);
     onSearch('');
     setTimeout(() => setIsSearching(false), 500);
   };
 
-  const hasActiveFilters = currentType !== 'all' || currentDevice !== null || searchQuery.length > 0;
+  const hasActiveFilters = currentType !== 'all' || searchQuery.length > 0;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
@@ -119,76 +111,55 @@ export default function SearchFilter({
       {/* 筛选器面板 */}
       {showFilters && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 内容类型筛选 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                内容类型
-              </label>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => onTypeFilter('all')}
-                  className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
-                    currentType === 'all'
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <span>全部</span>
-                </button>
-                <button
-                  onClick={() => onTypeFilter('text')}
-                  className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
-                    currentType === 'text'
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>文字</span>
-                </button>
-                <button
-                  onClick={() => onTypeFilter('image')}
-                  className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
-                    currentType === 'image'
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Image className="h-4 w-4" />
-                  <span>图片</span>
-                </button>
-                <button
-                  onClick={() => onTypeFilter('file')}
-                  className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
-                    currentType === 'file'
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <File className="h-4 w-4" />
-                  <span>文件</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 设备筛选 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                来源设备
-              </label>
-              <select
-                value={currentDevice || ''}
-                onChange={(e) => onDeviceFilter(e.target.value || null)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          {/* 内容类型筛选 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              内容类型
+            </label>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => onTypeFilter('all')}
+                className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
+                  currentType === 'all'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                <option value="">所有设备</option>
-                {devices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.deviceName} ({device.deviceId.slice(-8)})
-                  </option>
-                ))}
-              </select>
+                <span>全部</span>
+              </button>
+              <button
+                onClick={() => onTypeFilter('text')}
+                className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
+                  currentType === 'text'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                <span>文字</span>
+              </button>
+              <button
+                onClick={() => onTypeFilter('image')}
+                className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
+                  currentType === 'image'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Image className="h-4 w-4" />
+                <span>图片</span>
+              </button>
+              <button
+                onClick={() => onTypeFilter('file')}
+                className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors duration-200 ${
+                  currentType === 'file'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <File className="h-4 w-4" />
+                <span>文件</span>
+              </button>
             </div>
           </div>
 
@@ -202,17 +173,6 @@ export default function SearchFilter({
                     <button
                       onClick={() => onTypeFilter('all')}
                       className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-                {currentDevice && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    设备: {devices.find(d => d.deviceId === currentDevice)?.deviceName || currentDevice.slice(-8)}
-                    <button
-                      onClick={() => onDeviceFilter(null)}
-                      className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-green-400 hover:bg-green-200 hover:text-green-600"
                     >
                       <X className="w-3 h-3" />
                     </button>

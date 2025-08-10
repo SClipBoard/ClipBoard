@@ -1,4 +1,4 @@
-import type { ClipboardItem, Device, ApiResponse, PaginatedResponse, PaginationParams } from '../../shared/types';
+import type { ClipboardItem, ApiResponse, PaginatedResponse, PaginationParams } from '../../shared/types';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
@@ -42,18 +42,18 @@ class ApiClient {
     deviceId?: string;
   } = {}): Promise<PaginatedResponse<ClipboardItem>> {
     const searchParams = new URLSearchParams();
-    
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         searchParams.append(key, String(value));
       }
     });
-    
+
     const response = await this.request<PaginatedResponse<ClipboardItem>>(
       `/clipboard?${searchParams.toString()}`
     );
 
-    return response;
+    return response.data as PaginatedResponse<ClipboardItem>;
   }
 
   async getClipboardItem(id: string): Promise<ClipboardItem> {
@@ -97,40 +97,18 @@ class ApiClient {
     return response.data;
   }
 
-  // 设备相关API
-  async getDevices(): Promise<Device[]> {
-    const response = await this.request<Device[]>('/devices');
+  // 连接统计API
+  async getConnectionStats(): Promise<{
+    totalConnections: number;
+    activeConnections: number;
+    connectedDevices: Array<{ deviceId: string; connectionId: string }>;
+  }> {
+    const response = await this.request<{
+      totalConnections: number;
+      activeConnections: number;
+      connectedDevices: Array<{ deviceId: string; connectionId: string }>;
+    }>('/devices/connections');
     return response.data;
-  }
-
-  async getDevice(deviceId: string): Promise<Device> {
-    const response = await this.request<Device>(`/devices/${deviceId}`);
-    return response.data;
-  }
-
-  async registerDevice(device: {
-    deviceId: string;
-    deviceName: string;
-    userAgent: string;
-  }): Promise<Device> {
-    const response = await this.request<Device>('/devices', {
-      method: 'POST',
-      body: JSON.stringify(device),
-    });
-    return response.data;
-  }
-
-  async updateDeviceStatus(deviceId: string, isConnected: boolean): Promise<void> {
-    await this.request(`/devices/${deviceId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ isConnected }),
-    });
-  }
-
-  async deleteDevice(deviceId: string): Promise<void> {
-    await this.request(`/devices/${deviceId}`, {
-      method: 'DELETE',
-    });
   }
 
   // 配置相关API

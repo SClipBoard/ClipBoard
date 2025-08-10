@@ -1,5 +1,5 @@
 import mysql, { Pool, ResultSetHeader } from 'mysql2/promise';
-import type { ClipboardItem, Device } from '../shared/types';
+import type { ClipboardItem } from './types/shared';
 
 // 数据库配置接口（扩展shared types中的DatabaseConfig）
 interface DatabaseConfig {
@@ -65,7 +65,7 @@ async function createClipboardItemsTable(): Promise<void> {
       await execute(indexSql);
     } catch (error) {
       // 索引已存在时会报错，这是正常的
-      if (!error.message.includes('Duplicate key name')) {
+      if (error instanceof Error && !error.message.includes('Duplicate key name')) {
         console.warn('创建索引时出现警告:', error.message);
       }
     }
@@ -135,42 +135,7 @@ async function ensureFileFields(): Promise<void> {
   }
 }
 
-/**
- * 创建设备表
- */
-async function createDevicesTable(): Promise<void> {
-  const sql = `
-    CREATE TABLE IF NOT EXISTS devices (
-        device_id VARCHAR(100) PRIMARY KEY COMMENT '设备唯一标识',
-        device_name VARCHAR(100) NOT NULL COMMENT '设备名称',
-        user_agent TEXT COMMENT '用户代理字符串',
-        is_connected BOOLEAN DEFAULT FALSE COMMENT '是否在线连接',
-        last_sync TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '最后同步时间',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备信息表'
-  `;
-  
-  await execute(sql);
-  
-  // 创建索引（MySQL不支持IF NOT EXISTS，所以使用try-catch处理）
-  const indexes = [
-    'CREATE INDEX idx_devices_last_sync ON devices(last_sync DESC)',
-    'CREATE INDEX idx_devices_is_connected ON devices(is_connected)'
-  ];
-  
-  for (const indexSql of indexes) {
-    try {
-      await execute(indexSql);
-    } catch (error) {
-      // 索引已存在时会报错，这是正常的
-      if (!error.message.includes('Duplicate key name')) {
-        console.warn('创建索引时出现警告:', error.message);
-      }
-    }
-  }
-  
-  console.log('设备表创建成功');
-}
+
 
 /**
  * 初始化数据库连接池
@@ -209,13 +174,7 @@ export async function initDatabase(config: DatabaseConfig): Promise<void> {
       await ensureFileFields();
     }
     
-    const devicesTableExists = await checkTableExists('devices');
-    if (!devicesTableExists) {
-      console.log('设备表不存在，正在创建...');
-      await createDevicesTable();
-    } else {
-      console.log('设备表已存在');
-    }
+
     
     console.log('数据库表检查完成');
     
@@ -517,86 +476,7 @@ export class ClipboardItemDAO {
   }
 }
 
-/**
- * 设备数据访问对象
- */
-export class DeviceDAO {
-  /**
-   * 获取所有设备
-   */
-  static async getAll(): Promise<Device[]> {
-    const sql = `
-      SELECT device_id as deviceId, device_name as deviceName, user_agent as userAgent,
-             is_connected as isConnected, last_sync as lastSync, created_at as createdAt
-      FROM devices 
-      ORDER BY last_sync DESC
-    `;
-    
-    return await query<Device>(sql);
-  }
-  
-  /**
-   * 根据设备ID获取设备
-   */
-  static async getById(deviceId: string): Promise<Device | null> {
-    const sql = `
-      SELECT device_id as deviceId, device_name as deviceName, user_agent as userAgent,
-             is_connected as isConnected, last_sync as lastSync, created_at as createdAt
-      FROM devices 
-      WHERE device_id = ?
-    `;
-    
-    const devices = await query<Device>(sql, [deviceId]);
-    return devices[0] || null;
-  }
-  
-  /**
-   * 创建或更新设备
-   */
-  static async upsert(device: Omit<Device, 'createdAt' | 'lastSync'>): Promise<Device> {
-    const sql = `
-      INSERT INTO devices (device_id, device_name, user_agent, is_connected, last_sync)
-      VALUES (?, ?, ?, ?, NOW())
-      ON DUPLICATE KEY UPDATE
-        device_name = VALUES(device_name),
-        user_agent = VALUES(user_agent),
-        is_connected = VALUES(is_connected),
-        last_sync = NOW()
-    `;
-    
-    await execute(sql, [device.deviceId, device.deviceName, device.userAgent, device.isConnected]);
-    
-    const updated = await this.getById(device.deviceId);
-    if (!updated) {
-      throw new Error('创建或更新设备失败');
-    }
-    
-    return updated;
-  }
-  
-  /**
-   * 更新设备连接状态
-   */
-  static async updateConnectionStatus(deviceId: string, isConnected: boolean): Promise<Device | null> {
-    const sql = 'UPDATE devices SET is_connected = ?, last_sync = NOW() WHERE device_id = ?';
-    const result = await execute(sql, [isConnected, deviceId]);
-    
-    if (result.affectedRows > 0) {
-      return await this.getById(deviceId);
-    }
-    
-    return null;
-  }
-  
-  /**
-   * 删除设备
-   */
-  static async delete(deviceId: string): Promise<boolean> {
-    const sql = 'DELETE FROM devices WHERE device_id = ?';
-    const result = await execute(sql, [deviceId]);
-    return result.affectedRows > 0;
-  }
-}
+
 
 /**
  * 关闭数据库连接池

@@ -11,15 +11,7 @@ export interface ClipboardItem {
   mimeType?: string; // MIME类型（仅文件类型）
 }
 
-// 设备类型
-export interface Device {
-  deviceId: string;
-  deviceName: string;
-  userAgent?: string;
-  isConnected: boolean;
-  lastSync: string;
-  createdAt: string;
-}
+
 
 // API响应类型
 export interface ApiResponse<T> {

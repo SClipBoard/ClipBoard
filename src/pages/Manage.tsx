@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Square, Trash2, Download, Upload, FileText, Image, Filter, Search, RefreshCw, AlertCircle, Check } from 'lucide-react';
 import ClipboardItem from '../components/ClipboardItem';
 import { apiClient } from '../lib/api';
-import type { ClipboardItem as ClipboardItemType, Device, PaginationParams } from '../../shared/types';
+import type { ClipboardItem as ClipboardItemType, PaginationParams } from '../../shared/types';
 
 export default function Manage() {
   const [items, setItems] = useState<ClipboardItemType[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -16,7 +16,7 @@ export default function Manage() {
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'text' | 'image'>('all');
-  const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
+
   const [showFilters, setShowFilters] = useState(false);
   
   // 操作状态
@@ -37,7 +37,6 @@ export default function Manage() {
       const params: PaginationParams & {
         type?: 'text' | 'image';
         search?: string;
-        deviceId?: string;
       } = {
         page,
         limit: itemsPerPage
@@ -50,9 +49,6 @@ export default function Manage() {
       const currentSearch = customSearch !== undefined ? customSearch : searchQuery;
       if (currentSearch) {
         params.search = currentSearch;
-      }
-      if (deviceFilter) {
-        params.deviceId = deviceFilter;
       }
       
       const response = await apiClient.getClipboardItems(params);
@@ -69,37 +65,24 @@ export default function Manage() {
     } catch (error) {
       console.error('加载剪切板内容失败:', error);
     }
-  }, [typeFilter, deviceFilter]);
-
-  // 加载设备列表
-  const loadDevices = useCallback(async () => {
-    try {
-      const deviceList = await apiClient.getDevices();
-      setDevices(deviceList);
-    } catch (error) {
-      console.error('加载设备列表失败:', error);
-    }
-  }, []);
+  }, [typeFilter, searchQuery]);
 
   // 初始化
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([
-        loadItems(1),
-        loadDevices()
-      ]);
+      await loadItems(1);
       setLoading(false);
     };
-    
+
     init();
-  }, [loadItems, loadDevices]);
+  }, [loadItems]);
 
   // 筛选条件变化时重新加载（移除searchQuery的自动触发）
   useEffect(() => {
     setCurrentPage(1);
     loadItems(1);
-  }, [typeFilter, deviceFilter, loadItems]);
+  }, [typeFilter, loadItems]);
 
   // 全选/取消全选
   const handleSelectAll = useCallback(() => {
@@ -408,24 +391,7 @@ export default function Manage() {
                   </div>
                 </div>
 
-                {/* 设备筛选 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    来源设备
-                  </label>
-                  <select
-                    value={deviceFilter || ''}
-                    onChange={(e) => setDeviceFilter(e.target.value || null)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  >
-                    <option value="">所有设备</option>
-                    {devices.map((device) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.deviceName} ({device.deviceId.slice(-8)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+
               </div>
             </div>
           )}
@@ -533,7 +499,7 @@ export default function Manage() {
                 暂无内容
               </h3>
               <p className="text-gray-500">
-                {searchQuery || typeFilter !== 'all' || deviceFilter
+                {searchQuery || typeFilter !== 'all'
                   ? '没有找到符合条件的内容'
                   : '还没有剪切板内容'
                 }

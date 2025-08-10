@@ -1,48 +1,51 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Smartphone, Users, RefreshCw } from 'lucide-react';
-import type { Device } from '../../shared/types';
+import { apiClient } from '../lib/api';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
   deviceId: string;
-  devices: Device[];
   onReconnect: () => void;
-  onRefreshDevices: () => void;
 }
 
 export default function ConnectionStatus({
   isConnected,
   deviceId,
-  devices,
-  onReconnect,
-  onRefreshDevices
+  onReconnect
 }: ConnectionStatusProps) {
-  const [showDevices, setShowDevices] = useState(false);
+  const [connectionStats, setConnectionStats] = useState({
+    totalConnections: 0,
+    activeConnections: 0,
+    connectedDevices: [] as Array<{ deviceId: string; connectionId: string }>
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeviceList, setShowDeviceList] = useState(false);
 
-  const connectedDevices = devices.filter(device => device.isConnected);
-  const currentDevice = devices.find(device => device.deviceId === deviceId);
+  // 加载连接统计
+  const loadConnectionStats = async () => {
+    try {
+      const stats = await apiClient.getConnectionStats();
+      console.log('连接统计数据:', stats); // 调试信息
+      setConnectionStats(stats);
+    } catch (error) {
+      console.error('获取连接统计失败:', error);
+    }
+  };
 
-  const handleRefreshDevices = async () => {
+  // 定期刷新连接统计
+  useEffect(() => {
+    loadConnectionStats();
+    const interval = setInterval(loadConnectionStats, 5000); // 每5秒刷新一次
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRefreshStats = async () => {
     setIsRefreshing(true);
-    await onRefreshDevices();
+    await loadConnectionStats();
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const formatLastSync = (lastSync: string) => {
-    const date = new Date(lastSync);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    
-    return date.toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
@@ -72,100 +75,71 @@ export default function ConnectionStatus({
           )}
         </div>
 
-        {/* 设备信息和操作 */}
+        {/* 连接信息和操作 */}
         <div className="flex items-center space-x-4">
-          {/* 在线设备数量 */}
+          {/* 在线连接数量 */}
           <div className="flex items-center space-x-2 text-gray-600">
             <Users className="w-4 h-4" />
             <span className="text-sm">
-              {connectedDevices.length} 台设备在线
+              {connectionStats.activeConnections} 个活跃连接
             </span>
           </div>
 
           {/* 刷新按钮 */}
           <button
-            onClick={handleRefreshDevices}
+            onClick={handleRefreshStats}
             disabled={isRefreshing}
             className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-200"
-            title="刷新设备列表"
+            title="刷新连接统计"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* 设备列表切换 */}
+          {/* 当前设备信息 */}
           <button
-            onClick={() => setShowDevices(!showDevices)}
+            onClick={() => setShowDeviceList(!showDeviceList)}
             className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200"
+            title="点击查看所有连接的设备"
           >
             <Smartphone className="w-4 h-4" />
-            <span>设备</span>
+            <span>当前设备: {deviceId.slice(-8)}</span>
           </button>
         </div>
       </div>
 
-      {/* 当前设备信息 */}
-      {currentDevice && (
+      {/* 连接设备列表 */}
+      {showDeviceList && (
         <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <div className="flex items-center space-x-2">
-              <Smartphone className="w-4 h-4" />
-              <span>当前设备: {currentDevice.deviceName}</span>
-            </div>
-            <span>设备ID: {deviceId.slice(-8)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* 设备列表 */}
-      {showDevices && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">所有设备</h4>
-          
-          {devices.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              <Smartphone className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-              <p className="text-sm">暂无设备信息</p>
+          <h4 className="text-sm font-medium text-gray-900 mb-2">连接的设备</h4>
+          {connectionStats.connectedDevices.length === 0 ? (
+            <div className="text-center py-2 text-gray-500">
+              <p className="text-sm">暂无连接的设备</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {devices.map((device) => (
+              {connectionStats.connectedDevices.map((device, index) => (
                 <div
-                  key={device.deviceId}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                  key={device.connectionId}
+                  className={`flex items-center justify-between p-2 rounded-md border ${
                     device.deviceId === deviceId
                       ? 'bg-blue-50 border-blue-200'
                       : 'bg-gray-50 border-gray-200'
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      device.isConnected ? 'bg-green-500' : 'bg-gray-400'
-                    }`} />
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {device.deviceName}
-                        </span>
-                        {device.deviceId === deviceId && (
-                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                            当前
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {device.deviceId.slice(-12)}
-                      </div>
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-sm font-medium text-gray-900">
+                      设备 {index + 1}
+                    </span>
+                    {device.deviceId === deviceId && (
+                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        当前
+                      </span>
+                    )}
                   </div>
-                  
                   <div className="text-right">
-                    <div className={`text-xs font-medium ${
-                      device.isConnected ? 'text-green-600' : 'text-gray-500'
-                    }`}>
-                      {device.isConnected ? '在线' : '离线'}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {formatLastSync(device.lastSync)}
+                    <div className="text-xs text-gray-500 font-mono">
+                      {device.deviceId.slice(-12)}
                     </div>
                   </div>
                 </div>

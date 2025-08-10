@@ -54,7 +54,7 @@ class Logger {
       timestamp,
       level: level.toUpperCase(),
       message,
-      ...(data && { data })
+      ...(data && typeof data === 'object' && data !== null ? { data } : {})
     };
     return JSON.stringify(logEntry);
   }

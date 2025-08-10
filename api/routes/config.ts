@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
-import type { AppConfig, ApiResponse, CleanupRequest } from '../../shared/types.js';
+import type { AppConfig, ApiResponse, CleanupRequest } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 // 默认配置
 const defaultConfig: AppConfig = {

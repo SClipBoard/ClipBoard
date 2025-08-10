@@ -1,8 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { v4 as uuidv4 } from 'uuid';
-import type { WebSocketMessage, ClipboardItem } from '../shared/types';
-import { ClipboardItemDAO, DeviceDAO } from './database.js';
+import type { WebSocketMessage, ClipboardItem } from './types/shared';
+import { ClipboardItemDAO } from './database.js';
 
 // WebSocket连接管理
 interface WebSocketConnection {
@@ -42,13 +42,6 @@ class WebSocketManager {
 
       this.connections.set(connectionId, connection);
       console.log(`新的WebSocket连接: ${connectionId}, 设备ID: ${deviceId}`);
-      
-      // 如果有deviceId，更新设备连接状态
-      if (deviceId) {
-        DeviceDAO.updateConnectionStatus(deviceId, true).catch(error => {
-          console.error('更新设备连接状态失败:', error);
-        });
-      }
 
       // 发送连接成功消息
       this.sendMessage(ws, {
@@ -133,13 +126,6 @@ class WebSocketManager {
     // 更新连接的设备ID（如果提供）
     if (message.deviceId) {
       connection.deviceId = message.deviceId;
-      
-      // 更新设备连接状态
-      try {
-        await DeviceDAO.updateConnectionStatus(message.deviceId, true);
-      } catch (error) {
-        console.error('更新设备连接状态失败:', error);
-      }
     }
 
     // 如果消息包含剪切板数据，广播给所有其他连接
@@ -214,12 +200,9 @@ class WebSocketManager {
   private handleDisconnection(connectionId: string): void {
     const connection = this.connections.get(connectionId);
     if (connection && connection.deviceId) {
-      // 更新设备连接状态
-      DeviceDAO.updateConnectionStatus(connection.deviceId, false).catch(error => {
-        console.error('更新设备断开连接状态失败:', error);
-      });
+      console.log(`设备 ${connection.deviceId} 断开连接`);
     }
-    
+
     this.connections.delete(connectionId);
   }
 
@@ -301,13 +284,25 @@ class WebSocketManager {
   }
 
   // 获取连接统计
-  public getStats(): { totalConnections: number; activeConnections: number } {
+  public getStats(): {
+    totalConnections: number;
+    activeConnections: number;
+    connectedDevices: Array<{ deviceId: string; connectionId: string }>;
+  } {
     const activeConnections = Array.from(this.connections.values())
-      .filter(conn => conn.ws.readyState === WebSocket.OPEN).length;
-    
+      .filter(conn => conn.ws.readyState === WebSocket.OPEN);
+
+    const connectedDevices = activeConnections
+      .filter(conn => conn.deviceId)
+      .map(conn => ({
+        deviceId: conn.deviceId!,
+        connectionId: conn.id
+      }));
+
     return {
       totalConnections: this.connections.size,
-      activeConnections
+      activeConnections: activeConnections.length,
+      connectedDevices
     };
   }
 
@@ -327,4 +322,4 @@ class WebSocketManager {
 }
 
 export default WebSocketManager;
-export { WebSocketConnection };
+export type { WebSocketConnection };

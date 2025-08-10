@@ -6,11 +6,11 @@ import SearchFilter from '../components/SearchFilter';
 import ConnectionStatus from '../components/ConnectionStatus';
 import { apiClient } from '../lib/api';
 import { wsManager, deviceId } from '../lib/websocket';
-import type { ClipboardItem as ClipboardItemType, Device, PaginationParams } from '../../shared/types';
+import type { ClipboardItem as ClipboardItemType, PaginationParams } from '../../shared/types';
 
 export default function Home() {
   const [items, setItems] = useState<ClipboardItemType[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -20,7 +20,6 @@ export default function Home() {
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'text' | 'image' | 'file'>('all');
-  const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
   
 
   
@@ -36,7 +35,6 @@ export default function Home() {
       const params: PaginationParams & {
         type?: 'text' | 'image' | 'file';
         search?: string;
-        deviceId?: string;
       } = {
         page,
         limit: itemsPerPage
@@ -49,9 +47,6 @@ export default function Home() {
       const currentSearch = customSearch !== undefined ? customSearch : searchQuery;
       if (currentSearch) {
         params.search = currentSearch;
-      }
-      if (deviceFilter) {
-        params.deviceId = deviceFilter;
       }
       
       const response = await apiClient.getClipboardItems(params);
@@ -77,37 +72,26 @@ export default function Home() {
       console.error('加载剪切板内容失败:', error);
       // 出错时不清空现有数据，保持用户体验
     }
-  }, [typeFilter, deviceFilter]);
+  }, [typeFilter, searchQuery]);
 
-  // 加载设备列表
-  const loadDevices = useCallback(async () => {
-    try {
-      const deviceList = await apiClient.getDevices();
-      setDevices(deviceList);
-    } catch (error) {
-      console.error('加载设备列表失败:', error);
-    }
-  }, []);
+
 
   // 初始化
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([
-        loadItems(1),
-        loadDevices()
-      ]);
+      await loadItems(1);
       setLoading(false);
     };
-    
+
     init();
-  }, [loadItems, loadDevices]);
+  }, [loadItems]);
 
   // 筛选条件变化时重新加载（移除searchQuery的自动触发）
   useEffect(() => {
     setCurrentPage(1);
     loadItems(1);
-  }, [typeFilter, deviceFilter, loadItems]);
+  }, [typeFilter, loadItems]);
 
 
 
@@ -159,7 +143,7 @@ export default function Home() {
     return () => {
       wsManager.disconnect();
     };
-  }, []);
+  }, [searchQuery]);
 
   // 处理复制
   const handleCopy = useCallback((content: string) => {
@@ -182,16 +166,13 @@ export default function Home() {
     try {
       setLoading(true);
       setCurrentPage(1);
-      await Promise.all([
-        loadItems(1),
-        loadDevices()
-      ]);
+      await loadItems(1);
     } catch (error) {
       console.error('刷新失败:', error);
     } finally {
       setLoading(false);
     }
-  }, [loadItems, loadDevices]);
+  }, [loadItems]);
 
   // 处理加载更多
   const handleLoadMore = useCallback(async () => {
@@ -237,9 +218,7 @@ export default function Home() {
         <ConnectionStatus
           isConnected={isConnected}
           deviceId={deviceId}
-          devices={devices}
           onReconnect={handleReconnect}
-          onRefreshDevices={loadDevices}
         />
 
         {/* 搜索和筛选 */}
@@ -251,10 +230,7 @@ export default function Home() {
             loadItems(1, false, query);
           }}
           onTypeFilter={setTypeFilter}
-          onDeviceFilter={setDeviceFilter}
-          devices={devices}
           currentType={typeFilter}
-          currentDevice={deviceFilter}
         />
 
         {/* 操作按钮 */}
@@ -292,7 +268,7 @@ export default function Home() {
                 暂无剪切板内容
               </h3>
               <p className="text-gray-500 mb-4">
-                {searchQuery || typeFilter !== 'all' || deviceFilter
+                {searchQuery || typeFilter !== 'all'
                   ? '没有找到符合条件的内容'
                   : '开始使用剪切板同步功能吧'
                 }

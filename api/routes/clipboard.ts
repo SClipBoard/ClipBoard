@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams } from '../../shared/types.js';
+import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 import { getWebSocketManager } from '../server.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 /**
  * 获取剪切板内容列表
