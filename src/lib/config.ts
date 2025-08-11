@@ -15,6 +15,11 @@ export interface ClientConfig {
   isProduction: boolean;
 }
 
+export interface SecurityConfig {
+  customHeaderKey: string;
+  customHeaderValue: string;
+}
+
 /**
  * 获取API基础URL
  */

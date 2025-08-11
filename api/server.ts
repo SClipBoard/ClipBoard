@@ -5,6 +5,7 @@ import app from './app.js';
 import WebSocketManager from './websocket.js';
 import { initDatabase } from './database.js';
 import config from './config/index.js';
+import { readUserConfig } from './routes/config.js';
 
 // 全局WebSocket管理器实例
 let wsManager: WebSocketManager | null = null;
@@ -37,7 +38,25 @@ async function startServer() {
     // 启动WebSocket服务器
     wsManager = new WebSocketManager(Number(WS_PORT));
     console.log(`WebSocket服务器启动在端口 ${WS_PORT}`);
-    
+
+    // 加载WebSocket安全配置
+    try {
+      const userConfig = await readUserConfig();
+      if (userConfig.websocketSecurity?.enabled &&
+          userConfig.websocketSecurity.key &&
+          userConfig.websocketSecurity.value) {
+        wsManager.setSecurityConfig(
+          userConfig.websocketSecurity.key,
+          userConfig.websocketSecurity.value
+        );
+        console.log(`WebSocket安全配置已加载: ${userConfig.websocketSecurity.key}`);
+      } else {
+        console.log('WebSocket安全配置未启用');
+      }
+    } catch (error) {
+      console.warn('加载WebSocket安全配置失败:', error);
+    }
+
     return { server, wsManager };
   } catch (error) {
     console.error('服务器启动失败:', error);

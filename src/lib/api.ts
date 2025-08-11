@@ -1,5 +1,6 @@
 import type { ClipboardItem, ApiResponse, PaginatedResponse, PaginationParams } from '../../shared/types';
 import { getApiBaseUrl } from './config';
+import { useSecurityStore } from './security-store';
 
 /**
  * API请求工具类
@@ -10,10 +11,14 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${getApiBaseUrl()}${endpoint}`;
-    
+
+    // 获取安全配置的请求头
+    const securityHeaders = useSecurityStore.getState().getHeaders();
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        ...securityHeaders,
         ...options.headers,
       },
       ...options,
@@ -22,11 +27,11 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.message || '请求失败');
       }
-      
+
       return data;
     } catch (error) {
       console.error('API请求错误:', error);
@@ -157,6 +162,20 @@ class ApiClient {
       method: 'DELETE',
     });
     return response.data;
+  }
+
+  // WebSocket安全配置相关API
+  async setWebSocketSecurity(key: string, value: string): Promise<void> {
+    await this.request('/config/websocket-security', {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  }
+
+  async clearWebSocketSecurity(): Promise<void> {
+    await this.request('/config/websocket-security', {
+      method: 'DELETE',
+    });
   }
 }
 

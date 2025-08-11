@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { AppConfig, ApiResponse } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
+import { getWebSocketManager } from '../server.js';
 
 const router: express.Router = express.Router();
 
@@ -33,7 +34,12 @@ const defaultSystemConfig: AppConfig = {
 // 前端设置默认配置
 const defaultUserConfig = {
   maxItems: 1000,
-  autoCleanupDays: 30
+  autoCleanupDays: 30,
+  websocketSecurity: {
+    enabled: false,
+    key: '',
+    value: ''
+  }
 };
 
 // 配置文件路径
@@ -464,6 +470,183 @@ function formatBytes(bytes: number): string {
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+/**
+ * @swagger
+ * /config/websocket-security:
+ *   post:
+ *     tags: [Config]
+ *     summary: 设置WebSocket安全配置
+ *     description: 设置WebSocket连接的安全验证参数
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: 安全请求头的名称
+ *                 example: "X-API-Key"
+ *               value:
+ *                 type: string
+ *                 description: 安全请求头的值
+ *                 example: "your-secret-key-here"
+ *             required:
+ *               - key
+ *               - value
+ *     responses:
+ *       200:
+ *         description: 设置成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: 'WebSocket安全配置已更新'
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/websocket-security', async (req: Request, res: Response) => {
+  try {
+    const { key, value }: { key?: string; value?: string } = req.body;
+
+    if (!key || !value) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供有效的安全配置参数'
+      });
+    }
+
+    // 获取WebSocket管理器实例
+    const wsManager = getWebSocketManager();
+    if (!wsManager) {
+      return res.status(500).json({
+        success: false,
+        message: 'WebSocket服务器未启动'
+      });
+    }
+
+    // 读取当前用户配置
+    const currentConfig = await readUserConfig();
+
+    // 更新WebSocket安全配置
+    const updatedConfig = {
+      ...currentConfig,
+      websocketSecurity: {
+        enabled: true,
+        key: key.trim(),
+        value: value.trim()
+      }
+    };
+
+    // 保存到配置文件
+    await writeUserConfig(updatedConfig);
+
+    // 设置WebSocket管理器的安全配置
+    wsManager.setSecurityConfig(key.trim(), value.trim());
+
+    const response: ApiResponse<null> = {
+      success: true,
+      message: 'WebSocket安全配置已更新并保存'
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('设置WebSocket安全配置失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '设置WebSocket安全配置失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /config/websocket-security:
+ *   delete:
+ *     tags: [Config]
+ *     summary: 清除WebSocket安全配置
+ *     description: 清除WebSocket连接的安全验证，允许所有连接
+ *     responses:
+ *       200:
+ *         description: 清除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: 'WebSocket安全配置已清除'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.delete('/websocket-security', async (req: Request, res: Response) => {
+  try {
+    // 获取WebSocket管理器实例
+    const wsManager = getWebSocketManager();
+    if (!wsManager) {
+      return res.status(500).json({
+        success: false,
+        message: 'WebSocket服务器未启动'
+      });
+    }
+
+    // 读取当前用户配置
+    const currentConfig = await readUserConfig();
+
+    // 清除WebSocket安全配置
+    const updatedConfig = {
+      ...currentConfig,
+      websocketSecurity: {
+        enabled: false,
+        key: '',
+        value: ''
+      }
+    };
+
+    // 保存到配置文件
+    await writeUserConfig(updatedConfig);
+
+    // 清除WebSocket管理器的安全配置
+    wsManager.setSecurityConfig('', '');
+
+    const response: ApiResponse<null> = {
+      success: true,
+      message: 'WebSocket安全配置已清除并保存'
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('清除WebSocket安全配置失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '清除WebSocket安全配置失败'
+    });
+  }
+});
 
 // 导出用户配置读取函数供其他模块使用
 export { readUserConfig };

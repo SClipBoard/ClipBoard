@@ -10,43 +10,84 @@ interface WebSocketConnection {
   ws: WebSocket;
   deviceId?: string;
   lastPing: number;
+  isAuthenticated: boolean;
 }
 
 class WebSocketManager {
   private wss: WebSocketServer;
   private connections: Map<string, WebSocketConnection> = new Map();
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private securityConfig: { key: string; value: string } | null = null;
 
   constructor(port: number = 8080) {
     this.wss = new WebSocketServer({ port });
     this.setupWebSocketServer();
     this.startHeartbeat();
-    
+
     console.log(`WebSocket服务器启动在端口 ${port}`);
+  }
+
+  /**
+   * 设置安全配置
+   */
+  public setSecurityConfig(key: string, value: string): void {
+    if (key.trim() && value.trim()) {
+      this.securityConfig = { key: key.trim(), value: value.trim() };
+      console.log(`WebSocket安全配置已设置: ${key}`);
+    } else {
+      this.securityConfig = null;
+      console.log('WebSocket安全配置已清除');
+    }
+  }
+
+  /**
+   * 验证连接的安全性
+   */
+  private validateSecurity(url: URL): boolean {
+    // 如果没有配置安全验证，允许所有连接
+    if (!this.securityConfig) {
+      return true;
+    }
+
+    const authKey = url.searchParams.get('authKey');
+    const authValue = url.searchParams.get('authValue');
+
+    // 验证安全参数
+    return authKey === this.securityConfig.key && authValue === this.securityConfig.value;
   }
 
   private setupWebSocketServer(): void {
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const connectionId = uuidv4();
-      
-      // 解析URL查询参数获取deviceId
+
+      // 解析URL查询参数获取deviceId和安全参数
       const url = new URL(req.url || '', 'http://localhost');
       const deviceId = url.searchParams.get('deviceId');
-      
+
+      // 验证安全性
+      const isAuthenticated = this.validateSecurity(url);
+
+      if (!isAuthenticated) {
+        console.log(`WebSocket连接被拒绝: ${connectionId}, 安全验证失败`);
+        ws.close(1008, '安全验证失败');
+        return;
+      }
+
       const connection: WebSocketConnection = {
         id: connectionId,
         ws,
         deviceId: deviceId || undefined,
-        lastPing: Date.now()
+        lastPing: Date.now(),
+        isAuthenticated: true
       };
 
       this.connections.set(connectionId, connection);
-      console.log(`新的WebSocket连接: ${connectionId}, 设备ID: ${deviceId}`);
+      console.log(`新的WebSocket连接: ${connectionId}, 设备ID: ${deviceId}, 已通过安全验证`);
 
       // 发送连接成功消息
       this.sendMessage(ws, {
         type: 'sync',
-        data: { message: '连接成功', connectionId }
+        data: { message: '连接成功', connectionId, authenticated: true }
       });
 
       // 广播连接统计更新
@@ -87,7 +128,10 @@ class WebSocketManager {
 
   private handleMessage(connectionId: string, message: WebSocketMessage): void {
     const connection = this.connections.get(connectionId);
-    if (!connection) return;
+    if (!connection || !connection.isAuthenticated) {
+      console.warn(`未认证的连接尝试发送消息: ${connectionId}`);
+      return;
+    }
 
     switch (message.type) {
       case 'sync':

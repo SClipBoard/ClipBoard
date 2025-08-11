@@ -1,5 +1,6 @@
 import type { WebSocketMessage, ClipboardItem, ConnectionStats } from '../../shared/types';
 import { getWebSocketPort, fetchServerConfig } from './config';
+import { useSecurityStore } from './security-store';
 
 type WebSocketEventHandler = {
   onConnect?: () => void;
@@ -77,7 +78,18 @@ class WebSocketManager {
     // 构建WebSocket URL
     const wsUrl = `${protocol}//${hostname}:${this.wsPort}`;
 
-    return `${wsUrl}?deviceId=${this.deviceId}`;
+    // 获取安全配置
+    const securityConfig = useSecurityStore.getState().config;
+    const urlParams = new URLSearchParams();
+    urlParams.append('deviceId', this.deviceId);
+
+    // 如果配置了安全请求头，添加到URL参数中
+    if (securityConfig.customHeaderKey.trim() && securityConfig.customHeaderValue.trim()) {
+      urlParams.append('authKey', securityConfig.customHeaderKey.trim());
+      urlParams.append('authValue', securityConfig.customHeaderValue.trim());
+    }
+
+    return `${wsUrl}?${urlParams.toString()}`;
   }
 
   /**

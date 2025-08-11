@@ -1,4 +1,9 @@
 {
   "maxItems": 2,
-  "autoCleanupDays": 30
+  "autoCleanupDays": 30,
+  "websocketSecurity": {
+    "enabled": false,
+    "key": "",
+    "value": ""
+  }
 }
