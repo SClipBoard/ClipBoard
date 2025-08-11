@@ -258,6 +258,101 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // 文件预览相关API - 支持安全请求头
+  async getFilePreview(fileId: string, fileName?: string): Promise<Blob> {
+    let url = `${getApiBaseUrl()}/files/preview`;
+
+    // 构建查询参数
+    const params = new URLSearchParams();
+    params.append('id', fileId);
+    if (fileName) {
+      params.append('name', fileName);
+    }
+
+    url += `?${params.toString()}`;
+
+    // 获取安全配置的请求头
+    let securityHeaders: Record<string, string> = {};
+    try {
+      const securityConfig = localStorage.getItem('security-config');
+      if (securityConfig) {
+        const parsed = JSON.parse(securityConfig);
+        const config = parsed.state?.config || {};
+
+        if (config.customHeaderKey?.trim() && config.customHeaderValue?.trim()) {
+          securityHeaders[config.customHeaderKey.trim()] = config.customHeaderValue.trim();
+        }
+      }
+    } catch (error) {
+      console.warn('获取安全配置失败:', error);
+      securityHeaders = useSecurityStore.getState().getHeaders();
+    }
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          ...securityHeaders,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`文件预览请求失败: ${response.status}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('文件预览错误:', error);
+      throw error;
+    }
+  }
+
+  async getFileDownload(fileId: string, fileName?: string): Promise<Blob> {
+    let url = `${getApiBaseUrl()}/files/download`;
+
+    // 构建查询参数
+    const params = new URLSearchParams();
+    params.append('id', fileId);
+    if (fileName) {
+      params.append('name', fileName);
+    }
+
+    url += `?${params.toString()}`;
+
+    // 获取安全配置的请求头
+    let securityHeaders: Record<string, string> = {};
+    try {
+      const securityConfig = localStorage.getItem('security-config');
+      if (securityConfig) {
+        const parsed = JSON.parse(securityConfig);
+        const config = parsed.state?.config || {};
+
+        if (config.customHeaderKey?.trim() && config.customHeaderValue?.trim()) {
+          securityHeaders[config.customHeaderKey.trim()] = config.customHeaderValue.trim();
+        }
+      }
+    } catch (error) {
+      console.warn('获取安全配置失败:', error);
+      securityHeaders = useSecurityStore.getState().getHeaders();
+    }
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          ...securityHeaders,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`文件下载请求失败: ${response.status}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('文件下载错误:', error);
+      throw error;
+    }
+  }
 }
 
 // 导出单例实例

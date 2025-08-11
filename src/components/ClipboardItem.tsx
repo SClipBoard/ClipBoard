@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Copy, Trash2, Image, FileText, File, Check, X, Download } from 'lucide-react';
 import type { ClipboardItem as ClipboardItemType } from '../../shared/types';
 import { getApiBaseUrl } from '../lib/config';
+import SecureImage from './SecureImage';
+import { apiClient } from '../lib/api';
 
 interface ClipboardItemProps {
   item: ClipboardItemType;
@@ -64,30 +66,32 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
 
   const renderContent = () => {
     if (item.type === 'image') {
-      // 判断是否是新的文件存储方式（有filePath）还是旧的base64方式
-      const imageUrl = item.filePath
-        ? `${getApiBaseUrl()}/files/${item.id}/preview`
-        : item.content;
-
       return (
         <div className="flex items-center space-x-3">
           <div className="flex-shrink-0">
             <Image className="w-8 h-8 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <img
-              src={imageUrl}
-              alt="剪切板图片"
-              className="max-w-full max-h-32 rounded-lg object-contain"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.nextElementSibling?.classList.remove('hidden');
-              }}
-            />
-            <div className="hidden text-sm text-gray-500 mt-2">
-              图片加载失败
-            </div>
+            {/* 判断是否是新的文件存储方式（有filePath）还是旧的base64方式 */}
+            {item.filePath ? (
+              <SecureImage
+                fileId={item.id}
+                alt="剪切板图片"
+                className="max-w-full max-h-32 rounded-lg object-contain"
+                fileName={item.fileName}
+              />
+            ) : (
+              <img
+                src={item.content}
+                alt="剪切板图片"
+                className="max-w-full max-h-32 rounded-lg object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            )}
             <div className="text-xs text-gray-400 mt-2 italic">
               💡 右键点击图片进行复制
             </div>
@@ -117,16 +121,30 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
                   {item.fileName || '未知文件'}
                 </h4>
                 <button
-                  onClick={() => {
-                    // 判断是否是新的文件存储方式（有filePath）还是旧的base64方式
-                    const downloadUrl = item.filePath
-                      ? `${getApiBaseUrl()}/files/${item.id}`
-                      : item.content;
-
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = item.fileName || 'download';
-                    link.click();
+                  onClick={async () => {
+                    try {
+                      // 判断是否是新的文件存储方式（有filePath）还是旧的base64方式
+                      if (item.filePath) {
+                        // 使用安全的API请求下载文件
+                        const blob = await apiClient.getFileDownload(item.id, item.fileName);
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = item.fileName || 'download';
+                        link.click();
+                        // 清理blob URL
+                        URL.revokeObjectURL(url);
+                      } else {
+                        // 旧的base64方式
+                        const link = document.createElement('a');
+                        link.href = item.content;
+                        link.download = item.fileName || 'download';
+                        link.click();
+                      }
+                    } catch (error) {
+                      console.error('文件下载失败:', error);
+                      alert('文件下载失败，请重试');
+                    }
                   }}
                   className="p-1 rounded-md hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-colors duration-200"
                   title="下载文件"

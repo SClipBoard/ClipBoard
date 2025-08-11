@@ -58,7 +58,39 @@ const swaggerOptions: swaggerJSDoc.Options = {
     info: {
       title: '剪切板同步服务 API',
       version: '1.0.0',
-      description: '跨设备剪切板同步服务的 REST API 接口文档',
+      description: `
+跨设备剪切板同步服务的 REST API 接口文档
+
+## 安全功能
+
+本API支持自定义安全请求头功能，特别是文件相关接口：
+
+### 配置方式
+1. 在前端设置页面的"安全配置"部分配置自定义请求头
+2. 填写请求头名称（如：X-API-Key）和请求头值（安全密钥）
+3. 保存后，所有文件预览和下载请求都会自动附加此请求头
+
+### 支持的接口
+- \`/files/preview\` - 文件预览（查询参数版本，推荐）
+- \`/files/download\` - 文件下载（查询参数版本，推荐）
+- \`/files/{id}\` - 文件下载（传统版本，不支持安全请求头）
+- \`/files/{id}/preview\` - 文件预览（传统版本，不支持安全请求头）
+
+### nginx配置示例
+\`\`\`nginx
+location /api/files/ {
+    if ($http_x_api_key != "your-secret-key-here") {
+        return 403;
+    }
+    proxy_pass http://localhost:3001;
+}
+\`\`\`
+
+### 注意事项
+- 推荐使用查询参数版本的接口（/files/preview 和 /files/download）
+- 传统的路径参数版本主要用于向后兼容
+- 在生产环境中务必使用HTTPS
+      `,
       contact: {
         name: 'API Support',
         email: 'support@clipboard-sync.com'
@@ -382,6 +414,32 @@ const swaggerOptions: swaggerJSDoc.Options = {
           schema: {
             type: 'string'
           }
+        },
+        FileIdQueryParam: {
+          name: 'id',
+          in: 'query',
+          description: '文件ID（剪切板项目ID）',
+          required: true,
+          schema: {
+            type: 'string'
+          }
+        },
+        FileNameQueryParam: {
+          name: 'name',
+          in: 'query',
+          description: '文件名（可选，用于设置下载文件名）',
+          required: false,
+          schema: {
+            type: 'string'
+          }
+        }
+      },
+      securitySchemes: {
+        CustomHeader: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+          description: '自定义安全请求头，可在设置中配置。配置后所有文件相关请求都会自动附加此请求头。'
         }
       }
     },

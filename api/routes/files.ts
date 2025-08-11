@@ -7,13 +7,327 @@ import type { ApiResponse } from '../types/shared';
 
 const router: express.Router = express.Router();
 
+// 添加中间件来记录所有到达文件路由的请求
+router.use((req, res, next) => {
+  console.log(`文件路由请求: ${req.method} ${req.path}`, req.query);
+  next();
+});
+
+/**
+ * @swagger
+ * /files/preview:
+ *   get:
+ *     tags: [Files]
+ *     summary: 预览文件（查询参数版本，支持安全请求头）
+ *     description: |
+ *       根据查询参数中的ID预览对应的文件，支持传递文件名。
+ *
+ *       **安全功能：**
+ *       - 支持自定义安全请求头验证
+ *       - 前端会自动附加用户在设置中配置的安全请求头
+ *       - 可配合nginx等反向代理进行访问控制
+ *
+ *       **使用方式：**
+ *       1. 在前端设置页面配置安全请求头（如：X-API-Key）
+ *       2. 前端组件会自动使用此接口并附加安全请求头
+ *       3. 服务器返回文件内容供前端显示
+ *     security:
+ *       - CustomHeader: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/FileIdQueryParam'
+ *       - $ref: '#/components/parameters/FileNameQueryParam'
+ *     responses:
+ *       200:
+ *         description: 文件预览成功
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *             example: "二进制图片数据"
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "缺少必需的参数: id"
+ *       404:
+ *         description: 文件未找到
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "未找到指定的剪切板内容"
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/preview', async (req: Request, res: Response) => {
+  try {
+    const { id, name } = req.query;
+
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必需的参数: id'
+      });
+    }
+
+    // 从数据库获取剪切板项目
+    const item = await ClipboardItemDAO.getById(id);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: '未找到指定的剪切板内容'
+      });
+    }
+
+    // 检查是否是文件类型
+    if (item.type !== 'file' && item.type !== 'image') {
+      return res.status(400).json({
+        success: false,
+        message: '该内容不是文件类型'
+      });
+    }
+
+    // 检查是否有文件路径
+    if (!item.filePath) {
+      return res.status(404).json({
+        success: false,
+        message: '文件路径不存在'
+      });
+    }
+
+    // 检查文件是否存在
+    const exists = await fileExists(item.filePath);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: '文件不存在'
+      });
+    }
+
+    try {
+      // 读取文件
+      const fileBuffer = await readFile(item.filePath);
+
+      // 使用传递的文件名或者数据库中的文件名
+      const fileName = (typeof name === 'string' && name.trim()) ? name.trim() : (item.fileName || 'preview');
+
+      // 设置响应头（内联显示）
+      res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+
+      // 发送文件
+      res.send(fileBuffer);
+    } catch (error) {
+      console.error('读取文件失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '读取文件失败'
+      });
+    }
+  } catch (error) {
+    console.error('预览文件失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '预览文件失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /files/download:
+ *   get:
+ *     tags: [Files]
+ *     summary: 下载文件（查询参数版本，支持安全请求头）
+ *     description: |
+ *       根据查询参数中的ID下载对应的文件，支持传递文件名。
+ *
+ *       **安全功能：**
+ *       - 支持自定义安全请求头验证
+ *       - 前端会自动附加用户在设置中配置的安全请求头
+ *       - 可配合nginx等反向代理进行访问控制
+ *
+ *       **使用方式：**
+ *       1. 在前端设置页面配置安全请求头（如：X-API-Key）
+ *       2. 前端组件会自动使用此接口并附加安全请求头
+ *       3. 服务器返回文件内容供用户下载
+ *
+ *       **响应头说明：**
+ *       - Content-Type: 文件的MIME类型
+ *       - Content-Disposition: attachment; filename="文件名"
+ *       - Content-Length: 文件大小
+ *     security:
+ *       - CustomHeader: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/FileIdQueryParam'
+ *       - $ref: '#/components/parameters/FileNameQueryParam'
+ *     responses:
+ *       200:
+ *         description: 文件下载成功
+ *         headers:
+ *           Content-Type:
+ *             description: 文件的MIME类型
+ *             schema:
+ *               type: string
+ *               example: "application/pdf"
+ *           Content-Disposition:
+ *             description: 文件下载配置
+ *             schema:
+ *               type: string
+ *               example: 'attachment; filename="document.pdf"'
+ *           Content-Length:
+ *             description: 文件大小（字节）
+ *             schema:
+ *               type: integer
+ *               example: 1024
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "缺少必需的参数: id"
+ *       404:
+ *         description: 文件未找到
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "未找到指定的剪切板内容"
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/download', async (req: Request, res: Response) => {
+  try {
+    console.log('下载路由被调用，查询参数:', req.query);
+    const { id, name } = req.query;
+
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必需的参数: id'
+      });
+    }
+
+    // 从数据库获取剪切板项目
+    const item = await ClipboardItemDAO.getById(id);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: '未找到指定的剪切板内容'
+      });
+    }
+
+    // 检查是否是文件类型
+    if (item.type !== 'file' && item.type !== 'image') {
+      return res.status(400).json({
+        success: false,
+        message: '该内容不是文件类型'
+      });
+    }
+
+    // 检查是否有文件路径
+    if (!item.filePath) {
+      return res.status(404).json({
+        success: false,
+        message: '文件路径不存在'
+      });
+    }
+
+    // 检查文件是否存在
+    const exists = await fileExists(item.filePath);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: '文件不存在'
+      });
+    }
+
+    try {
+      // 读取文件
+      const fileBuffer = await readFile(item.filePath);
+
+      // 使用传递的文件名或者数据库中的文件名
+      const fileName = (typeof name === 'string' && name.trim()) ? name.trim() : (item.fileName || 'download');
+
+      // 设置响应头（下载）
+      res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+
+      // 发送文件
+      res.send(fileBuffer);
+    } catch (error) {
+      console.error('读取文件失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '读取文件失败'
+      });
+    }
+  } catch (error) {
+    console.error('下载文件失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '下载文件失败'
+    });
+  }
+});
+
 /**
  * @swagger
  * /files/{id}:
  *   get:
  *     tags: [Files]
- *     summary: 下载文件
- *     description: 根据剪切板项目ID下载对应的文件
+ *     summary: 下载文件（传统路径参数版本）
+ *     description: |
+ *       根据剪切板项目ID下载对应的文件。这是传统的路径参数版本。
+ *
+ *       **注意：** 推荐使用新的查询参数版本 `/files/download?id=xxx&name=xxx`，
+ *       该版本支持安全请求头和文件名参数。
+ *
+ *       **限制：**
+ *       - 不支持自定义安全请求头
+ *       - 不支持自定义文件名参数
+ *       - 主要用于向后兼容
  *     parameters:
  *       - in: path
  *         name: id
@@ -113,8 +427,17 @@ router.get('/:id', async (req: Request, res: Response) => {
  * /files/{id}/preview:
  *   get:
  *     tags: [Files]
- *     summary: 预览文件
- *     description: 根据剪切板项目ID预览对应的文件（内联显示）
+ *     summary: 预览文件（传统路径参数版本）
+ *     description: |
+ *       根据剪切板项目ID预览对应的文件（内联显示）。这是传统的路径参数版本。
+ *
+ *       **注意：** 推荐使用新的查询参数版本 `/files/preview?id=xxx&name=xxx`，
+ *       该版本支持安全请求头和文件名参数。
+ *
+ *       **限制：**
+ *       - 不支持自定义安全请求头
+ *       - 不支持自定义文件名参数
+ *       - 主要用于向后兼容
  *     parameters:
  *       - in: path
  *         name: id

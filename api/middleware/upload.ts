@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
+import { Request, Response, NextFunction } from 'express';
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -59,17 +60,17 @@ const upload = multer({
 /**
  * 单文件上传中间件
  */
-export const uploadSingle = upload.single('file');
+export const uploadSingle: (req: Request, res: Response, next: NextFunction) => void = upload.single('file');
 
 /**
  * 多文件上传中间件
  */
-export const uploadMultiple = upload.array('files', 10);
+export const uploadMultiple: (req: Request, res: Response, next: NextFunction) => void = upload.array('files', 10);
 
 /**
  * 任意字段文件上传中间件
  */
-export const uploadAny = upload.any();
+export const uploadAny: (req: Request, res: Response, next: NextFunction) => void = upload.any();
 
 /**
  * 处理上传错误的中间件
@@ -131,11 +132,11 @@ const memoryUpload = multer({
 /**
  * 内存单文件上传中间件
  */
-export const uploadSingleMemory = memoryUpload.single('file');
+export const uploadSingleMemory: (req: Request, res: Response, next: NextFunction) => void = memoryUpload.single('file');
 
 /**
  * 内存多文件上传中间件
  */
-export const uploadMultipleMemory = memoryUpload.array('files', 10);
+export const uploadMultipleMemory: (req: Request, res: Response, next: NextFunction) => void = memoryUpload.array('files', 10);
 
 export default upload;
