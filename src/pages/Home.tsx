@@ -5,9 +5,11 @@ import ClipboardItem from '../components/ClipboardItem';
 import SearchFilter from '../components/SearchFilter';
 import ConnectionStatus from '../components/ConnectionStatus';
 import GlobalPasteIndicator from '../components/GlobalPasteIndicator';
+import GlobalDropIndicator from '../components/GlobalDropIndicator';
 import { apiClient } from '../lib/api';
 import { wsManager, deviceId } from '../lib/websocket';
 import { useGlobalPaste } from '../hooks/useGlobalPaste';
+import { useGlobalDrop } from '../hooks/useGlobalDrop';
 import type { ClipboardItem as ClipboardItemType, PaginationParams } from '../../shared/types';
 
 export default function Home() {
@@ -31,6 +33,18 @@ export default function Home() {
         // 不在这里直接添加到列表，完全依赖 WebSocket 的 onNewItem 事件来处理
         // 这样可以确保数据的一致性，避免重复添加
         console.log('全局粘贴成功，等待 WebSocket 同步更新列表');
+      }
+    }
+  });
+
+  // 全局拖拽功能
+  const { isDragging, isUploading, lastDropResult, clearLastResult: clearDropResult } = useGlobalDrop({
+    enabled: true,
+    onDropComplete: (result) => {
+      if (result.success && result.item) {
+        // 不在这里直接添加到列表，完全依赖 WebSocket 的 onNewItem 事件来处理
+        // 这样可以确保数据的一致性，避免重复添加
+        console.log('全局拖拽上传成功，等待 WebSocket 同步更新列表');
       }
     }
   });
@@ -194,18 +208,7 @@ export default function Home() {
     }
   }, []);
 
-  // 处理刷新
-  const handleRefresh = useCallback(async () => {
-    try {
-      setLoading(true);
-      setCurrentPage(1);
-      await loadItems(1);
-    } catch (error) {
-      console.error('刷新失败:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadItems]);
+
 
   // 处理加载更多
   const handleLoadMore = useCallback(async () => {
@@ -246,9 +249,15 @@ export default function Home() {
             <p className="text-gray-600">
               跨设备同步您的剪切板内容，支持文字、图片和文件
             </p>
-            <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
-              <Keyboard className="w-4 h-4" />
-              <span>按 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">Ctrl+V</kbd> 快速粘贴上传</span>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+                <Keyboard className="w-4 h-4" />
+                <span>按 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">Ctrl+V</kbd> 快速粘贴</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-gray-500 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                <Plus className="w-4 h-4 text-blue-600" />
+                <span className="text-blue-700">拖拽文件到页面任意位置上传</span>
+              </div>
             </div>
           </div>
         </div>
@@ -283,13 +292,7 @@ export default function Home() {
               <Plus className="w-4 h-4" />
               <span>上传内容</span>
             </Link>
-            <button
-              onClick={handleRefresh}
-              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>刷新</span>
-            </button>
+
             <Link
               to="/settings"
               className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
@@ -353,6 +356,14 @@ export default function Home() {
         isPasting={isPasting}
         lastPasteResult={lastPasteResult}
         onClearResult={clearLastResult}
+      />
+
+      {/* 全局拖拽指示器 */}
+      <GlobalDropIndicator
+        isDragging={isDragging}
+        isUploading={isUploading}
+        lastDropResult={lastDropResult}
+        onClearResult={clearDropResult}
       />
     </div>
   );
