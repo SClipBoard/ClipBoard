@@ -8,7 +8,7 @@
   },
   "websocketSecurity": {
     "enabled": true,
-    "key": "X-Api-key",
+    "key": "X-Api-Key",
     "value": "Qw133133"
   }
 }

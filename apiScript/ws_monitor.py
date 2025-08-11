@@ -8,6 +8,7 @@
 1. 实时监控: python ws_monitor.py
 2. 指定设备ID: python ws_monitor.py --device-id my-device
 3. 指定服务器: python ws_monitor.py --url ws://localhost:3002/ws
+4. 带验证的连接: python ws_monitor.py --auth-key X-Api-Key --auth-value Qw133133
 
 依赖安装: pip install websockets
 """
@@ -16,31 +17,62 @@ import asyncio
 import json
 import sys
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import websockets
 import argparse
 
 
 class RealtimeClipboardMonitor:
-    def __init__(self, url: str = "ws://localhost:3002/ws", device_id: str = "monitor-python"):
+    def __init__(self, url: str = "ws://localhost:3002/ws", device_id: str = "monitor-python",
+                 auth_key: Optional[str] = None, auth_value: Optional[str] = None):
         self.base_url = url
         self.device_id = device_id
-        self.url = f"{url}?deviceId={device_id}"
+        self.auth_key = auth_key
+        self.auth_value = auth_value
+        self.url = self._build_url()
         self.websocket = None
         self.running = False
+
+    def _build_url(self) -> str:
+        """构建WebSocket连接URL"""
+        url_parts = [f"{self.base_url}?deviceId={self.device_id}"]
+
+        # 如果提供了验证信息，添加到URL中
+        if self.auth_key and self.auth_value:
+            url_parts.append(f"authKey={self.auth_key}")
+            url_parts.append(f"authValue={self.auth_value}")
+
+        return "&".join(url_parts)
         
     async def connect(self):
         """建立 WebSocket 连接"""
         try:
-            print(f"🔗 正在连接到: {self.url}")
+            # 显示连接信息（隐藏敏感的验证信息）
+            display_url = self.url
+            if self.auth_key and self.auth_value:
+                # 隐藏验证值的部分内容
+                masked_value = self.auth_value[:3] + "*" * (len(self.auth_value) - 3) if len(self.auth_value) > 3 else "***"
+                display_url = f"{self.base_url}?deviceId={self.device_id}&authKey={self.auth_key}&authValue={masked_value}"
+                print(f"🔐 使用验证连接: {self.auth_key}")
+
+            print(f"🔗 正在连接到: {display_url}")
             self.websocket = await websockets.connect(self.url)
             self.running = True
             print("✅ WebSocket 连接成功建立")
+            if self.auth_key and self.auth_value:
+                print("🔒 验证成功")
             print("📡 开始实时监听剪切板变化...")
             print("=" * 60)
             return True
         except Exception as e:
             print(f"❌ 连接失败: {e}")
+            print(f"🔍 完整请求URL: {self.url}")
+            if self.auth_key and self.auth_value:
+                print("💡 提示: 请检查验证信息是否正确")
+                print(f"   - 验证密钥: {self.auth_key}")
+                print(f"   - 验证值: {self.auth_value}")
+            else:
+                print("💡 提示: 当前使用无验证连接")
             return False
     
     async def disconnect(self):
@@ -170,10 +202,18 @@ async def main():
     parser = argparse.ArgumentParser(description="剪切板同步服务 WebSocket 实时监控")
     parser.add_argument("--url", default="ws://localhost:3002/ws", help="WebSocket服务器地址")
     parser.add_argument("--device-id", default="monitor-python", help="设备ID")
+    parser.add_argument("--auth-key", help="验证密钥名称 (例如: X-Api-Key)")
+    parser.add_argument("--auth-value", help="验证密钥值 (例如: Qw133133)")
     
     args = parser.parse_args()
     
-    monitor = RealtimeClipboardMonitor(args.url, args.device_id)
+    # 验证参数：如果提供了其中一个验证参数，必须同时提供另一个
+    if (args.auth_key and not args.auth_value) or (args.auth_value and not args.auth_key):
+        print("❌ 错误: 验证参数必须同时提供 --auth-key 和 --auth-value")
+        print("💡 示例: python ws_monitor.py --auth-key X-Api-Key --auth-value Qw133133")
+        return
+    
+    monitor = RealtimeClipboardMonitor(args.url, args.device_id, args.auth_key, args.auth_value)
     
     # 建立连接
     if not await monitor.connect():
@@ -192,6 +232,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("💡 这是真正的实时监控，不使用轮询")
     print("📡 服务器会主动推送剪切板变化")
+    print("🔐 支持WebSocket验证连接")
     print("=" * 50)
     
     try:
