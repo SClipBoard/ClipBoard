@@ -117,6 +117,12 @@ class WebSocketManager {
           this.sendError(connection.ws, '处理获取最新内容消息失败');
         });
         break;
+      case 'get_all_content':
+        this.handleGetAllContent(connection.ws, message).catch(error => {
+          console.error('处理获取所有内容消息失败:', error);
+          this.sendError(connection.ws, '处理获取所有内容消息失败');
+        });
+        break;
       default:
         this.sendError(connection.ws, '未知的消息类型');
     }
@@ -197,6 +203,51 @@ class WebSocketManager {
     } catch (error) {
       console.error('获取最新内容失败:', error);
       this.sendError(ws, '获取最新内容失败');
+    }
+  }
+
+  private async handleGetAllContent(ws: WebSocket, message: WebSocketMessage): Promise<void> {
+    try {
+      // 解析查询参数
+      const queryParams = {
+        page: 1,
+        limit: 1000, // 默认获取1000条，可以通过消息参数调整
+        type: undefined as 'text' | 'image' | 'file' | undefined,
+        search: undefined as string | undefined,
+        deviceId: undefined as string | undefined
+      };
+
+      // 如果消息中包含查询参数，使用这些参数
+      if (message.data && typeof message.data === 'object') {
+        const params = message.data as Record<string, unknown>;
+        if (params.limit && typeof params.limit === 'number') {
+          queryParams.limit = Math.min(params.limit, 5000); // 最大限制5000条
+        }
+        if (params.type && typeof params.type === 'string') {
+          queryParams.type = params.type as 'text' | 'image' | 'file';
+        }
+        if (params.search && typeof params.search === 'string') {
+          queryParams.search = params.search;
+        }
+        if (params.deviceId && typeof params.deviceId === 'string') {
+          queryParams.deviceId = params.deviceId;
+        }
+      }
+
+      // 获取所有剪切板内容
+      const result = await ClipboardItemDAO.getItems(queryParams);
+
+      this.sendMessage(ws, {
+        type: 'all_content',
+        data: result.items,
+        message: `成功获取 ${result.items.length} 条剪切板内容`,
+        count: result.total
+      });
+
+      console.log(`WebSocket客户端请求所有内容，返回 ${result.items.length} 条记录`);
+    } catch (error) {
+      console.error('获取所有剪切板内容失败:', error);
+      this.sendError(ws, '获取所有剪切板内容失败');
     }
   }
 
@@ -302,6 +353,29 @@ class WebSocketManager {
         this.sendMessage(connection.ws, message);
       }
     });
+  }
+
+  // 广播所有剪切板内容给所有连接
+  public async broadcastAllContent(): Promise<void> {
+    try {
+      const result = await ClipboardItemDAO.getItems({ page: 1, limit: 1000 });
+      const message: WebSocketMessage = {
+        type: 'all_content',
+        data: result.items,
+        message: `广播所有剪切板内容，共 ${result.items.length} 条`,
+        count: result.total
+      };
+
+      this.connections.forEach((connection) => {
+        if (connection.ws.readyState === WebSocket.OPEN) {
+          this.sendMessage(connection.ws, message);
+        }
+      });
+
+      console.log(`广播所有剪切板内容给 ${this.connections.size} 个连接，共 ${result.items.length} 条记录`);
+    } catch (error) {
+      console.error('广播所有剪切板内容失败:', error);
+    }
   }
 
   // 获取连接统计

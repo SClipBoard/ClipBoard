@@ -36,8 +36,42 @@ async function autoCleanupIfNeeded(): Promise<void> {
 }
 
 /**
- * 获取剪切板内容列表
- * GET /api/clipboard
+ * @swagger
+ * /clipboard:
+ *   get:
+ *     tags: [Clipboard]
+ *     summary: 获取剪切板内容列表
+ *     description: 分页获取剪切板内容，支持类型筛选、搜索和设备筛选
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
+ *       - $ref: '#/components/parameters/TypeParam'
+ *       - $ref: '#/components/parameters/SearchParam'
+ *       - $ref: '#/components/parameters/FilterParam'
+ *       - $ref: '#/components/parameters/DeviceIdParam'
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/ClipboardItem'
+ *                     total:
+ *                       type: number
+ *                       description: 总条目数
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -97,8 +131,42 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 上传剪切板内容
- * POST /api/clipboard
+ * @swagger
+ * /clipboard:
+ *   post:
+ *     tags: [Clipboard]
+ *     summary: 上传剪切板内容
+ *     description: 创建新的剪切板内容项
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UploadRequest'
+ *     responses:
+ *       201:
+ *         description: 上传成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ClipboardItem'
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
@@ -178,8 +246,33 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 删除剪切板内容
- * DELETE /api/clipboard/:id
+ * @swagger
+ * /clipboard/{id}:
+ *   delete:
+ *     tags: [Clipboard]
+ *     summary: 删除剪切板内容
+ *     description: 根据ID删除指定的剪切板内容项
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdParam'
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       404:
+ *         description: 未找到指定内容
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
@@ -217,8 +310,38 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取单个剪切板内容
- * GET /api/clipboard/:id
+ * @swagger
+ * /clipboard/{id}:
+ *   get:
+ *     tags: [Clipboard]
+ *     summary: 获取单个剪切板内容
+ *     description: 根据ID获取指定的剪切板内容项详情
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdParam'
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ClipboardItem'
+ *       404:
+ *         description: 未找到指定内容
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {

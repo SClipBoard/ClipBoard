@@ -5,8 +5,36 @@ import { getWebSocketManager } from '../server.js';
 const router: express.Router = express.Router();
 
 /**
- * 获取WebSocket连接统计
- * GET /api/devices/connections
+ * @swagger
+ * /devices/connections:
+ *   get:
+ *     tags: [Devices]
+ *     summary: 获取WebSocket连接统计
+ *     description: 获取当前WebSocket连接的统计信息，包括总连接数、活跃连接数等
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ConnectionStats'
+ *       503:
+ *         description: WebSocket服务器未启动
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/connections', async (req: Request, res: Response) => {
   try {

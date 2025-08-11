@@ -81,8 +81,37 @@ async function writeUserConfig(config: typeof defaultUserConfig): Promise<void> 
 }
 
 /**
- * 获取客户端配置信息（仅包含前端需要的配置）
- * GET /api/config/client
+ * @swagger
+ * /config/client:
+ *   get:
+ *     tags: [Config]
+ *     summary: 获取客户端配置
+ *     description: 获取前端应用需要的配置信息，如WebSocket端口等
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         websocket:
+ *                           type: object
+ *                           properties:
+ *                             port:
+ *                               type: number
+ *                               description: WebSocket端口号
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/client', async (req: Request, res: Response) => {
   try {
@@ -111,8 +140,30 @@ router.get('/client', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取用户配置信息（前端设置页面使用）
- * GET /api/config
+ * @swagger
+ * /config:
+ *   get:
+ *     tags: [Config]
+ *     summary: 获取用户配置
+ *     description: 获取用户的个人配置信息，用于前端设置页面显示
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/AppConfig'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -134,8 +185,36 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 更新用户配置信息（前端设置页面使用）
- * PUT /api/config
+ * @swagger
+ * /config:
+ *   put:
+ *     tags: [Config]
+ *     summary: 更新用户配置
+ *     description: 更新用户的个人配置信息
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AppConfig'
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/AppConfig'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.put('/', async (req: Request, res: Response) => {
   try {
@@ -170,8 +249,51 @@ router.put('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 清理过期内容
- * POST /api/config/cleanup
+ * @swagger
+ * /config/cleanup:
+ *   post:
+ *     tags: [Config]
+ *     summary: 清理过期内容
+ *     description: 根据指定条件清理过期的剪切板内容
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxCount:
+ *                 type: number
+ *                 description: 保留的最大条目数
+ *               beforeDate:
+ *                 type: string
+ *                 format: date
+ *                 description: 删除此日期之前的内容
+ *     responses:
+ *       200:
+ *         description: 清理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         deletedCount:
+ *                           type: number
+ *                           description: 删除的条目数
+ *                         remainingCount:
+ *                           type: number
+ *                           description: 剩余的条目数
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/cleanup', async (req: Request, res: Response) => {
   try {
@@ -226,8 +348,34 @@ router.post('/cleanup', async (req: Request, res: Response) => {
 });
 
 /**
- * 清空所有内容
- * DELETE /api/config/clear-all
+ * @swagger
+ * /config/clear-all:
+ *   delete:
+ *     tags: [Config]
+ *     summary: 清空所有内容
+ *     description: 删除所有剪切板内容项
+ *     responses:
+ *       200:
+ *         description: 清空成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         deletedCount:
+ *                           type: number
+ *                           description: 删除的条目数
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.delete('/clear-all', async (req: Request, res: Response) => {
   try {
@@ -250,8 +398,30 @@ router.delete('/clear-all', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取存储统计信息
- * GET /api/config/stats
+ * @swagger
+ * /config/stats:
+ *   get:
+ *     tags: [Config]
+ *     summary: 获取存储统计信息
+ *     description: 获取剪切板内容的存储统计信息，包括总条目数、各类型条目数、总存储大小等
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/StorageStats'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {

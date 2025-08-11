@@ -7,10 +7,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import authRoutes from './routes/auth.js';
+
 import clipboardRoutes from './routes/clipboard.js';
 import devicesRoutes from './routes/devices.js';
 import configRoutes from './routes/config.js';
+import { setupSwagger } from './swagger.js';
 
 // for esm mode
 const __filename = fileURLToPath(import.meta.url);
@@ -30,15 +31,38 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../')));
 
 /**
+ * API 文档
+ */
+setupSwagger(app);
+
+/**
  * API Routes
  */
-app.use('/api/auth', authRoutes);
+
 app.use('/api/clipboard', clipboardRoutes);
 app.use('/api/devices', devicesRoutes);
 app.use('/api/config', configRoutes);
 
 /**
- * health
+ * @swagger
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: 健康检查
+ *     description: 检查服务器是否正常运行
+ *     responses:
+ *       200:
+ *         description: 服务器正常运行
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: 'ok'
  */
 app.use('/api/health', (req: Request, res: Response): void => {
   res.status(200).json({
