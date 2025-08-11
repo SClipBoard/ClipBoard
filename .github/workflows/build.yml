@@ -1,0 +1,163 @@
+name: Build Package
+
+# 添加权限配置
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_linux:
+        description: "构建Linux版本"
+        required: false
+        type: boolean
+        default: true
+      build_windows:
+        description: "构建Windows版本"
+        required: false
+        type: boolean
+        default: true
+      build_docker:
+        description: "构建Docker镜像"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+jobs:
+  build_linux:
+    if: github.event.inputs.build_linux == 'true' || github.event_name == 'push' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js for build
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd client && npm install
+          cd ../server && npm install
+      - name: Build package
+        run: npm run package:linux
+        env:
+          CI: true
+          NODE_ENV: production
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsm3-management-panel-linux-build
+          path: dist/package/
+          retention-days: 30
+
+  build_windows:
+    if: github.event.inputs.build_windows == 'true' || github.event_name == 'push' || github.event_name == 'release'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: |
+          npm install
+          cd client
+          npm install
+          cd ..
+          cd server
+          npm install
+          cd ..
+      - name: Build package
+        run: npm run package:windows
+        env:
+          CI: true
+          NODE_ENV: production
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsm3-management-panel-windows-build
+          path: dist/package/
+          retention-days: 30
+
+  build_docker:
+    if: github.event.inputs.build_docker == 'true' || github.event_name == 'push' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      # 第一步：检出代码
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
+        
+      # 第二步：设置构建环境
+      - name: 配置QEMU模拟器
+        uses: docker/setup-qemu-action@v2
+        
+      - name: 配置Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: network=host
+        
+      # 第三步：登录所有镜像仓库
+      - name: 登录Docker仓库
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      # 第四步：构建并推送镜像（带缓存功能）
+      - name: 缓存并构建推送DockerHub
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            xiaozhu674/sclipboard:1.0
+            xiaozhu674/sclipboard:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 创建发布版本（仅在推送标签时触发）
+  create_release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build_linux, build_windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gsm3-management-panel-linux-build
+          path: linux-build/
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gsm3-management-panel-windows-build
+          path: windows-build/
+      - name: Create Linux tar.gz
+        run: |
+          cd linux-build
+          tar -czf ../gsm3-management-panel-linux.tar.gz *
+      - name: Create Windows zip
+        run: |
+          cd windows-build
+          zip -r ../gsm3-management-panel-windows.zip *
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            gsm3-management-panel-linux.tar.gz
+            gsm3-management-panel-windows.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
