@@ -1,6 +1,5 @@
 import type { ClipboardItem, ApiResponse, PaginatedResponse, PaginationParams } from '../../shared/types';
-
-const API_BASE_URL = 'http://localhost:3001/api';
+import { getApiBaseUrl } from './config';
 
 /**
  * API请求工具类
@@ -10,7 +9,7 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${getApiBaseUrl()}${endpoint}`;
     
     const config: RequestInit = {
       headers: {

@@ -15,7 +15,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_API_PORT ?
+          `http://localhost:${process.env.VITE_API_PORT}` :
+          'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         configure: (proxy) => {
@@ -31,5 +33,10 @@ export default defineConfig({
         },
       }
     }
+  },
+  define: {
+    // 确保环境变量在构建时可用
+    __VITE_API_PORT__: JSON.stringify(process.env.VITE_API_PORT || '3001'),
+    __VITE_WS_PORT__: JSON.stringify(process.env.VITE_WS_PORT || '3002'),
   }
 })

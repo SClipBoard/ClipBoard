@@ -1,4 +1,5 @@
 import type { WebSocketMessage, ClipboardItem, ConnectionStats } from '../../shared/types';
+import { getWebSocketPort, fetchServerConfig } from './config';
 
 type WebSocketEventHandler = {
   onConnect?: () => void;
@@ -48,19 +49,16 @@ class WebSocketManager {
    */
   private async fetchWebSocketConfig(): Promise<number> {
     try {
-      const response = await fetch('/api/config/client');
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data?.websocket?.port) {
-          return result.data.websocket.port;
-        }
+      const serverConfig = await fetchServerConfig();
+      if (serverConfig?.websocket?.port) {
+        return serverConfig.websocket.port;
       }
     } catch (error) {
       console.warn('获取WebSocket配置失败，使用默认配置:', error);
     }
 
     // 如果获取配置失败，使用环境变量或默认值
-    return parseInt(import.meta.env.VITE_WS_PORT || '3002', 10);
+    return getWebSocketPort();
   }
 
   /**
@@ -423,7 +421,7 @@ function generateDeviceId(): string {
     return stored;
   }
   
-  const deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   localStorage.setItem('clipboard_device_id', deviceId);
   return deviceId;
 }
