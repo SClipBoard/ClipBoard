@@ -1,4 +1,4 @@
-import type { ClipboardItem, ApiResponse, PaginatedResponse, PaginationParams } from '../../shared/types';
+import type { ClipboardItem, ApiResponse, PaginatedResponse, PaginationParams, UpdateRequest } from '../../shared/types';
 import { getApiBaseUrl } from './config';
 import { useSecurityStore } from './security-store';
 
@@ -148,6 +148,14 @@ class ApiClient {
       console.error('文件上传错误:', error);
       throw error;
     }
+  }
+
+  async updateClipboardItem(id: string, updates: UpdateRequest): Promise<ClipboardItem> {
+    const response = await this.request<ClipboardItem>(`/clipboard/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    return response.data;
   }
 
   async deleteClipboardItem(id: string): Promise<void> {

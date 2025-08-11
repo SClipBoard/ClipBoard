@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams, FileUploadRequest } from '../types/shared';
+import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams, FileUploadRequest, UpdateRequest } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 import { getWebSocketManager } from '../server.js';
 import { readUserConfig } from './config.js';
@@ -459,6 +459,171 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @swagger
+ * /clipboard/{id}:
+ *   put:
+ *     tags: [Clipboard]
+ *     summary: 更新剪切板内容
+ *     description: |
+ *       更新指定的剪切板内容项。目前支持更新文本内容和文件名。
+ *
+ *       **支持的更新字段：**
+ *       - content: 文本内容（仅限文本类型）
+ *       - fileName: 文件名（仅限文件和图片类型）
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdParam'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateRequest'
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ClipboardItem'
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 未找到指定内容
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { content, fileName }: UpdateRequest = req.body;
+
+    // 验证至少有一个字段需要更新
+    if (content === undefined && fileName === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: '至少需要提供一个要更新的字段: content 或 fileName'
+      });
+    }
+
+    // 先获取当前项目信息，验证类型
+    const currentItem = await ClipboardItemDAO.getById(id);
+    if (!currentItem) {
+      return res.status(404).json({
+        success: false,
+        message: '未找到指定的剪切板内容'
+      });
+    }
+
+    // 验证更新字段的合法性
+    if (content !== undefined) {
+      if (currentItem.type !== 'text') {
+        return res.status(400).json({
+          success: false,
+          message: '只有文本类型的内容可以更新content字段'
+        });
+      }
+      if (typeof content !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'content字段必须是字符串类型'
+        });
+      }
+    }
+
+    if (fileName !== undefined) {
+      if (currentItem.type === 'text') {
+        return res.status(400).json({
+          success: false,
+          message: '文本类型的内容不能更新fileName字段'
+        });
+      }
+      if (typeof fileName !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'fileName字段必须是字符串类型'
+        });
+      }
+    }
+
+    // 执行更新
+    const updatedItem = await ClipboardItemDAO.update(id, { content, fileName });
+
+    if (!updatedItem) {
+      return res.status(500).json({
+        success: false,
+        message: '更新失败'
+      });
+    }
+
+    // 通过WebSocket广播更新消息
+    const wsManager = getWebSocketManager();
+    if (wsManager) {
+      wsManager.broadcastNewItem(updatedItem);
+    }
+
+    const response: ApiResponse<ClipboardItem> = {
+      success: true,
+      data: updatedItem,
+      message: '更新成功'
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('更新剪切板内容失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '更新剪切板内容失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /clipboard/{id}:
+ *   delete:
+ *     tags: [Clipboard]
+ *     summary: 删除剪切板内容
+ *     description: 根据ID删除指定的剪切板内容项
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdParam'
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       404:
+ *         description: 未找到指定内容
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 /**
  * @swagger
  * /clipboard/{id}:

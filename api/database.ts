@@ -344,6 +344,49 @@ export class ClipboardItemDAO {
   }
   
   /**
+   * 更新剪切板内容
+   */
+  static async update(id: string, updates: Partial<Pick<ClipboardItem, 'content' | 'fileName'>>): Promise<ClipboardItem | null> {
+    // 先获取当前项目信息
+    const currentItem = await this.getById(id);
+    if (!currentItem) {
+      return null;
+    }
+
+    // 构建更新SQL
+    const updateFields: string[] = [];
+    const params: unknown[] = [];
+
+    if (updates.content !== undefined) {
+      updateFields.push('content = ?');
+      params.push(updates.content);
+    }
+
+    if (updates.fileName !== undefined) {
+      updateFields.push('file_name = ?');
+      params.push(updates.fileName);
+    }
+
+    if (updateFields.length === 0) {
+      return currentItem; // 没有需要更新的字段
+    }
+
+    // 添加更新时间
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+
+    const sql = `UPDATE clipboard_items SET ${updateFields.join(', ')} WHERE id = ?`;
+    const result = await execute(sql, params);
+
+    if (result.affectedRows === 0) {
+      return null;
+    }
+
+    // 返回更新后的项目
+    return await this.getById(id);
+  }
+
+  /**
    * 删除剪切板内容
    */
   static async delete(id: string): Promise<boolean> {

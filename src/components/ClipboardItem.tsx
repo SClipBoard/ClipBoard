@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Trash2, Image, FileText, File, Check, X, Download } from 'lucide-react';
+import { Copy, Trash2, Image, FileText, File, Check, X, Download, Edit2, Save } from 'lucide-react';
 import type { ClipboardItem as ClipboardItemType } from '../../shared/types';
 import { getApiBaseUrl } from '../lib/config';
 import SecureImage from './SecureImage';
@@ -9,11 +9,16 @@ interface ClipboardItemProps {
   item: ClipboardItemType;
   onDelete: (id: string) => void;
   onCopy: (content: string) => void;
+  onUpdate?: (id: string, updates: { content?: string; fileName?: string }) => void;
 }
 
-export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemProps) {
+export default function ClipboardItem({ item, onDelete, onCopy, onUpdate }: ClipboardItemProps) {
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(item.content);
+  const [editFileName, setEditFileName] = useState(item.fileName || '');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -40,6 +45,49 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
   const handleDelete = () => {
     onDelete(item.id);
     setShowDeleteConfirm(false);
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditContent(item.content);
+    setEditFileName(item.fileName || '');
+  };
+
+  const handleSave = async () => {
+    if (!onUpdate) return;
+
+    setIsSaving(true);
+    try {
+      const updates: { content?: string; fileName?: string } = {};
+
+      // 对于文本类型，更新内容
+      if (item.type === 'text' && editContent !== item.content) {
+        updates.content = editContent;
+      }
+
+      // 对于文件和图片类型，更新文件名
+      if ((item.type === 'file' || item.type === 'image') && editFileName !== item.fileName) {
+        updates.fileName = editFileName;
+      }
+
+      // 如果有更新内容，则调用更新函数
+      if (Object.keys(updates).length > 0) {
+        await onUpdate(item.id, updates);
+      }
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('保存失败:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(item.content);
+    setEditFileName(item.fileName || '');
   };
 
   const formatDate = (dateString: string) => {
@@ -117,9 +165,22 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
           <div className="flex-1 min-w-0">
             <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-gray-900 truncate">
-                  {item.fileName || '未知文件'}
-                </h4>
+                {isEditing ? (
+                  <div className="flex-1 mr-2">
+                    <input
+                      type="text"
+                      value={editFileName}
+                      onChange={(e) => setEditFileName(e.target.value)}
+                      className="w-full p-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="文件名"
+                      disabled={isSaving}
+                    />
+                  </div>
+                ) : (
+                  <h4 className="text-sm font-medium text-gray-900 truncate">
+                    {item.fileName || '未知文件'}
+                  </h4>
+                )}
                 <button
                   onClick={async () => {
                     try {
@@ -156,6 +217,25 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
                 <span>大小: {item.fileSize ? formatFileSize(item.fileSize) : '未知'}</span>
                 <span>类型: {item.mimeType || '未知'}</span>
               </div>
+              {isEditing && (
+                <div className="flex items-center space-x-2 mt-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  >
+                    <Save className="w-3 h-3" />
+                    <span>{isSaving ? '保存中...' : '保存'}</span>
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                    className="px-3 py-1 text-xs bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    取消
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -168,12 +248,42 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
           <FileText className="w-5 h-5 text-green-500" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-900 break-words whitespace-pre-wrap">
-            {item.content.length > 200 
-              ? `${item.content.substring(0, 200)}...` 
-              : item.content
-            }
-          </p>
+          {isEditing ? (
+            <div className="space-y-2">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="w-full p-2 text-sm border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={Math.min(10, Math.max(3, editContent.split('\n').length))}
+                placeholder="输入文本内容..."
+                disabled={isSaving}
+              />
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="px-3 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                >
+                  <Save className="w-3 h-3" />
+                  <span>{isSaving ? '保存中...' : '保存'}</span>
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-900 break-words whitespace-pre-wrap">
+              {item.content.length > 200
+                ? `${item.content.substring(0, 200)}...`
+                : item.content
+              }
+            </p>
+          )}
         </div>
       </div>
     );
@@ -195,12 +305,23 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
         </div>
         
         <div className="flex items-center space-x-2">
+          {/* 编辑按钮 */}
+          {onUpdate && !isEditing && (
+            <button
+              onClick={handleEdit}
+              className="p-1.5 rounded-md hover:bg-blue-100 text-gray-600 hover:text-blue-600 transition-colors duration-200"
+              title={item.type === 'text' ? '编辑文本内容' : '编辑文件名'}
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          )}
+
           {/* 复制按钮 */}
           <button
             onClick={handleCopy}
             className={`p-1.5 rounded-md transition-colors duration-200 ${
-              copied 
-                ? 'bg-green-100 text-green-600' 
+              copied
+                ? 'bg-green-100 text-green-600'
                 : 'hover:bg-gray-100 text-gray-600'
             }`}
             title="复制到剪切板"

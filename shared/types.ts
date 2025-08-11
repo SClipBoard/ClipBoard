@@ -39,6 +39,12 @@ export interface FileUploadRequest {
   fileName?: string; // 可选，如果不提供则使用上传文件的原始名称
 }
 
+// 更新请求类型
+export interface UpdateRequest {
+  content?: string; // 更新文本内容（仅限文本类型）
+  fileName?: string; // 更新文件名（仅限文件和图片类型）
+}
+
 // 连接统计信息类型
 export interface ConnectionStats {
   totalConnections: number;

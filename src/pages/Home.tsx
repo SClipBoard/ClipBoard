@@ -160,18 +160,24 @@ export default function Home() {
         console.log('WebSocket已断开');
       },
       onNewItem: (newItem) => {
-        // 只有在没有搜索查询和类型筛选时才添加新项目
+        // 只有在没有搜索查询和类型筛选时才处理新项目
         if (!searchQuery && typeFilter === 'all') {
           setItems(prev => {
-            // 检查是否已存在，避免重复添加
-            if (prev.some(item => item.id === newItem.id)) {
-              console.log('项目已存在，跳过添加:', newItem.id);
-              return prev;
+            // 检查是否已存在
+            const existingIndex = prev.findIndex(item => item.id === newItem.id);
+            if (existingIndex !== -1) {
+              // 如果项目已存在，则更新它（用于处理编辑操作）
+              console.log('更新现有项目:', newItem.id);
+              const updatedItems = [...prev];
+              updatedItems[existingIndex] = newItem;
+              return updatedItems;
+            } else {
+              // 如果是新项目，则添加到列表顶部并增加总数
+              console.log('添加新项目到列表:', newItem.id);
+              setTotalItems(prev => prev + 1);
+              return [newItem, ...prev];
             }
-            console.log('添加新项目到列表:', newItem.id);
-            return [newItem, ...prev];
           });
-          setTotalItems(prev => prev + 1);
         }
       },
       onDeleteItem: (itemId) => {
@@ -195,6 +201,19 @@ export default function Home() {
   // 处理复制
   const handleCopy = useCallback((content: string) => {
     console.log('已复制到剪切板:', content.substring(0, 50) + '...');
+  }, []);
+
+  // 处理更新
+  const handleUpdate = useCallback(async (id: string, updates: { content?: string; fileName?: string }) => {
+    try {
+      const updatedItem = await apiClient.updateClipboardItem(id, updates);
+      setItems(prev => prev.map(item =>
+        item.id === id ? updatedItem : item
+      ));
+    } catch (error) {
+      console.error('更新失败:', error);
+      alert('更新失败，请重试');
+    }
   }, []);
 
   // 处理删除
@@ -332,6 +351,7 @@ export default function Home() {
                   item={item}
                   onCopy={handleCopy}
                   onDelete={handleDelete}
+                  onUpdate={handleUpdate}
                 />
               ))}
               
