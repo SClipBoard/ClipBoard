@@ -36,17 +36,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
       - name: Setup Node.js for build
         uses: actions/setup-node@v4
         with:
           node-version: '22.17.0'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Build package
-        run: npm run package:linux
+        run: pnpm run package:linux
         env:
           CI: true
           NODE_ENV: production
@@ -63,17 +69,23 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.17.0'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Build package
-        run: npm run package:windows
+        run: pnpm run package:windows
         env:
           CI: true
           NODE_ENV: production
