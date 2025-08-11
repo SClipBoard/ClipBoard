@@ -12,8 +12,25 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${getApiBaseUrl()}${endpoint}`;
 
-    // 获取安全配置的请求头
-    const securityHeaders = useSecurityStore.getState().getHeaders();
+    // 获取安全配置的请求头 - 使用更可靠的方式
+    let securityHeaders: Record<string, string> = {};
+    try {
+      // 直接从localStorage获取配置，确保获取到最新的配置
+      const securityConfig = localStorage.getItem('security-config');
+      if (securityConfig) {
+        const parsed = JSON.parse(securityConfig);
+        const config = parsed.state?.config || {};
+
+        if (config.customHeaderKey?.trim() && config.customHeaderValue?.trim()) {
+          securityHeaders[config.customHeaderKey.trim()] = config.customHeaderValue.trim();
+          console.log('API请求附加安全请求头:', config.customHeaderKey.trim());
+        }
+      }
+    } catch (error) {
+      console.warn('获取安全配置失败:', error);
+      // 降级到使用store方式
+      securityHeaders = useSecurityStore.getState().getHeaders();
+    }
 
     const config: RequestInit = {
       headers: {

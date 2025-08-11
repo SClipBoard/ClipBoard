@@ -80,13 +80,42 @@ export function getClientConfig(): ClientConfig {
 }
 
 /**
+ * 获取安全请求头
+ */
+function getSecurityHeaders(): Record<string, string> {
+  try {
+    const securityConfig = localStorage.getItem('security-config');
+    if (securityConfig) {
+      const parsed = JSON.parse(securityConfig);
+      const config = parsed.state?.config || {};
+
+      if (config.customHeaderKey?.trim() && config.customHeaderValue?.trim()) {
+        return {
+          [config.customHeaderKey.trim()]: config.customHeaderValue.trim()
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('获取安全配置失败:', error);
+  }
+  return {};
+}
+
+/**
  * 从服务器获取动态配置
  */
 export async function fetchServerConfig(): Promise<{
   websocket: { port: number };
 } | null> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/config/client`);
+    const securityHeaders = getSecurityHeaders();
+    const response = await fetch(`${getApiBaseUrl()}/config/client`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...securityHeaders
+      }
+    });
     if (response.ok) {
       const result = await response.json();
       if (result.success && result.data) {
@@ -104,8 +133,13 @@ export async function fetchServerConfig(): Promise<{
  */
 export async function checkServerConnection(): Promise<boolean> {
   try {
+    const securityHeaders = getSecurityHeaders();
     const response = await fetch(`${getApiBaseUrl()}/config/client`, {
       method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...securityHeaders
+      },
       timeout: 5000,
     } as RequestInit);
     return response.ok;
