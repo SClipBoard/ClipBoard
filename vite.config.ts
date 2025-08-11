@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     tsconfigPaths(),
   ],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: false, // 不清空dist目录，因为后端文件也在这里
+  },
   server: {
     proxy: {
       '/api': {

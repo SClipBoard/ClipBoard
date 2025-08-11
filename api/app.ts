@@ -11,6 +11,7 @@ import path from 'path';
 import clipboardRoutes from './routes/clipboard.js';
 import devicesRoutes from './routes/devices.js';
 import configRoutes from './routes/config.js';
+import websocketDocsRoutes from './routes/websocket-docs.js';
 import { setupSwagger } from './swagger.js';
 
 // for esm mode
@@ -42,6 +43,8 @@ setupSwagger(app);
 app.use('/api/clipboard', clipboardRoutes);
 app.use('/api/devices', devicesRoutes);
 app.use('/api/config', configRoutes);
+// WebSocket文档路由（仅用于Swagger文档生成）
+app.use('/api', websocketDocsRoutes);
 
 /**
  * @swagger

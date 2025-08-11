@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "vite",
     "dev:backend": "tsx watch api/server.ts",
-    "build": "npm run build:frontend && npm run build:backend",
+    "build": "npm run build:backend && npm run build:frontend",
     "build:frontend": "vite build",
     "build:backend": "tsc -p api/tsconfig.json",
     "start": "node dist/api/server.js",
@@ -20,7 +20,9 @@
     "preview": "vite preview",
     "db:init": "node -e \"console.log('请手动执行 migrations/001_init_database.sql 文件中的SQL语句来初始化数据库')\"",
     "clean": "rimraf dist node_modules/.vite",
-    "packge": "node ./scripts/pack.mjs"
+    "package": "node ./scripts/pack.mjs",
+    "package:windows": "node ./scripts/pack.mjs --target=windows",
+    "package:linux": "node ./scripts/pack.mjs --target=linux"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",

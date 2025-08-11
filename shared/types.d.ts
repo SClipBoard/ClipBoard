@@ -23,9 +23,17 @@ export interface UploadRequest {
     fileSize?: number;
     mimeType?: string;
 }
+export interface ConnectionStats {
+    totalConnections: number;
+    activeConnections: number;
+    connectedDevices: Array<{
+        deviceId: string;
+        connectionId: string;
+    }>;
+}
 export interface WebSocketMessage {
-    type: 'sync' | 'delete' | 'get_all_text' | 'get_all_images' | 'get_latest' | 'all_text' | 'all_images' | 'latest' | 'error' | 'pong' | 'ping' | 'new_item' | 'delete_item';
-    data?: ClipboardItem | ClipboardItem[] | string | number | Record<string, unknown>;
+    type: 'sync' | 'delete' | 'get_all_text' | 'get_all_images' | 'get_latest' | 'get_all_content' | 'all_text' | 'all_images' | 'latest' | 'all_content' | 'error' | 'pong' | 'ping' | 'new_item' | 'delete_item' | 'connection_stats';
+    data?: ClipboardItem | ClipboardItem[] | ConnectionStats | string | number | Record<string, unknown>;
     id?: string;
     count?: number;
     message?: string;

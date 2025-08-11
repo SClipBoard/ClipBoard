@@ -3,7 +3,53 @@
  */
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
-import type { Express } from 'express';
+import type { Application } from 'express';
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * 动态检测API文件路径
+ */
+function getApiPaths(): string[] {
+  const currentDir = process.cwd();
+  const apiDir = path.join(currentDir, 'api');
+
+  // 检查是否存在编译后的JS文件
+  const appJsPath = path.join(apiDir, 'app.js');
+  const appTsPath = path.join(apiDir, 'app.ts');
+
+  // 检查routes目录中的文件类型
+  const routesDir = path.join(apiDir, 'routes');
+  let hasJsFiles = false;
+  let hasTsFiles = false;
+
+  if (fs.existsSync(routesDir)) {
+    const files = fs.readdirSync(routesDir);
+    hasJsFiles = files.some(file => file.endsWith('.js'));
+    hasTsFiles = files.some(file => file.endsWith('.ts'));
+  }
+
+  // 优先使用JS文件（生产环境），如果不存在则使用TS文件（开发环境）
+  if (fs.existsSync(appJsPath) && hasJsFiles) {
+    console.log('🔍 Swagger: 使用编译后的JS文件');
+    return [
+      './api/routes/*.js',
+      './api/app.js'
+    ];
+  } else if (fs.existsSync(appTsPath) && hasTsFiles) {
+    console.log('🔍 Swagger: 使用TypeScript源文件');
+    return [
+      './api/routes/*.ts',
+      './api/app.ts'
+    ];
+  } else {
+    console.warn('⚠️  Swagger: 未找到API文件，使用默认路径');
+    return [
+      './api/routes/*.ts',
+      './api/app.ts'
+    ];
+  }
+}
 
 // Swagger 配置选项
 const swaggerOptions: swaggerJSDoc.Options = {
@@ -319,10 +365,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
       }
     ]
   },
-  apis: [
-    './api/routes/*.ts',
-    './api/app.ts'
-  ]
+  apis: getApiPaths()
 };
 
 // 生成 Swagger 规范
@@ -331,7 +374,7 @@ const swaggerSpec = swaggerJSDoc(swaggerOptions);
 /**
  * 设置 Swagger 文档
  */
-export function setupSwagger(app: Express): void {
+export function setupSwagger(app: Application): void {
   // Swagger UI 配置
   const swaggerUiOptions = {
     customCss: `
@@ -351,7 +394,7 @@ export function setupSwagger(app: Express): void {
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
   
   // 提供 JSON 格式的 API 规范
-  app.get('/api/docs.json', (req, res) => {
+  app.get('/api/docs.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
   });
