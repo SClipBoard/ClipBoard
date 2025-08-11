@@ -132,13 +132,10 @@ export class FileCleanupScheduler {
    */
   start(intervalHours: number = 24, runImmediately: boolean = false): void {
     if (this.intervalId) {
-      console.log('文件清理任务已在运行');
       return;
     }
 
     const intervalMs = intervalHours * 60 * 60 * 1000;
-
-    console.log(`启动文件清理任务，间隔: ${intervalHours} 小时`);
 
     // 根据参数决定是否立即执行一次清理
     if (runImmediately) {
@@ -158,7 +155,6 @@ export class FileCleanupScheduler {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      console.log('文件清理任务已停止');
     }
   }
 

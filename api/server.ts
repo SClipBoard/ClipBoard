@@ -62,13 +62,13 @@ async function startServer() {
       console.warn('加载WebSocket安全配置失败:', error);
     }
 
-    // 启动文件清理调度器
-    try {
-      fileCleanupScheduler.start(24, false); // 每24小时清理一次，启动时不立即执行
-      console.log('文件清理调度器已启动，将在24小时后开始定期清理');
-    } catch (error) {
-      console.warn('启动文件清理调度器失败:', error);
-    }
+    // 文件清理调度器已禁用，如需启用请手动调用 fileCleanupScheduler.start()
+    // try {
+    //   fileCleanupScheduler.start(24, false); // 每24小时清理一次，启动时不立即执行
+    //   console.log('文件清理调度器已启动，将在24小时后开始定期清理');
+    // } catch (error) {
+    //   console.warn('启动文件清理调度器失败:', error);
+    // }
 
     return { server, wsManager };
   } catch (error) {
