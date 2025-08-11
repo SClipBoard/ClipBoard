@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { v4 as uuidv4 } from 'uuid';
-import type { WebSocketMessage, ClipboardItem } from './types/shared';
+import type { WebSocketMessage, ClipboardItem, ConnectionStats } from './types/shared';
 import { ClipboardItemDAO } from './database.js';
 
 // WebSocket连接管理
@@ -48,6 +48,9 @@ class WebSocketManager {
         type: 'sync',
         data: { message: '连接成功', connectionId }
       });
+
+      // 广播连接统计更新
+      this.broadcastConnectionStats();
 
       // 处理消息
       ws.on('message', (data: Buffer) => {
@@ -204,6 +207,9 @@ class WebSocketManager {
     }
 
     this.connections.delete(connectionId);
+
+    // 广播连接统计更新
+    this.broadcastConnectionStats();
   }
 
   private broadcastToOthers(senderConnectionId: string, message: WebSocketMessage): void {
@@ -274,6 +280,21 @@ class WebSocketManager {
     const message: WebSocketMessage = {
       type: 'delete',
       id: itemId
+    };
+
+    this.connections.forEach((connection) => {
+      if (connection.ws.readyState === WebSocket.OPEN) {
+        this.sendMessage(connection.ws, message);
+      }
+    });
+  }
+
+  // 广播连接统计给所有连接
+  public broadcastConnectionStats(): void {
+    const stats = this.getStats();
+    const message: WebSocketMessage = {
+      type: 'connection_stats',
+      data: stats
     };
 
     this.connections.forEach((connection) => {

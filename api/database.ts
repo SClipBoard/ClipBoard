@@ -121,8 +121,6 @@ async function ensureFileFields(): Promise<void> {
         console.log('更新content字段类型为LONGTEXT以支持大尺寸图片');
         await execute('ALTER TABLE clipboard_items MODIFY COLUMN content LONGTEXT NOT NULL COMMENT \'剪切板内容\'');
         console.log('content字段已更新为LONGTEXT类型');
-      } else {
-        console.log('content字段已是LONGTEXT类型');
       }
     } else {
       console.warn('未找到content字段');

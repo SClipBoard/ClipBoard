@@ -1,4 +1,4 @@
-import type { WebSocketMessage, ClipboardItem } from '../../shared/types';
+import type { WebSocketMessage, ClipboardItem, ConnectionStats } from '../../shared/types';
 
 type WebSocketEventHandler = {
   onConnect?: () => void;
@@ -6,6 +6,7 @@ type WebSocketEventHandler = {
   onNewItem?: (item: ClipboardItem) => void;
   onDeleteItem?: (itemId: string) => void;
   onSync?: (items: ClipboardItem[]) => void;
+  onConnectionStats?: (stats: ConnectionStats) => void;
   onError?: (error: string) => void;
 };
 
@@ -342,10 +343,16 @@ class WebSocketManager {
         }
         break;
         
+      case 'connection_stats':
+        if (message.data && typeof message.data === 'object') {
+          this.handlers.onConnectionStats?.(message.data as ConnectionStats);
+        }
+        break;
+
       case 'pong':
         // 心跳响应，无需处理
         break;
-        
+
       default:
         console.warn('未知的WebSocket消息类型:', message.type);
     }

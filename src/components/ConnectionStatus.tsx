@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Smartphone, Users, RefreshCw } from 'lucide-react';
 import { apiClient } from '../lib/api';
+import { wsManager } from '../lib/websocket';
+import type { ConnectionStats } from '../../shared/types';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
@@ -13,15 +15,15 @@ export default function ConnectionStatus({
   deviceId,
   onReconnect
 }: ConnectionStatusProps) {
-  const [connectionStats, setConnectionStats] = useState({
+  const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
     totalConnections: 0,
     activeConnections: 0,
-    connectedDevices: [] as Array<{ deviceId: string; connectionId: string }>
+    connectedDevices: []
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDeviceList, setShowDeviceList] = useState(false);
 
-  // 加载连接统计
+  // 加载连接统计（仅用于手动刷新）
   const loadConnectionStats = async () => {
     try {
       const stats = await apiClient.getConnectionStats();
@@ -32,11 +34,26 @@ export default function ConnectionStatus({
     }
   };
 
-  // 定期刷新连接统计
+  // 监听WebSocket连接统计推送
   useEffect(() => {
+    // 初始加载一次连接统计
     loadConnectionStats();
-    const interval = setInterval(loadConnectionStats, 5000); // 每5秒刷新一次
-    return () => clearInterval(interval);
+
+    // 设置WebSocket事件处理器
+    wsManager.setHandlers({
+      onConnectionStats: (stats: ConnectionStats) => {
+        console.log('收到连接统计推送:', stats);
+        setConnectionStats(stats);
+      }
+    });
+
+    // 清理函数
+    return () => {
+      // 移除连接统计处理器（保留其他处理器）
+      wsManager.setHandlers({
+        onConnectionStats: undefined
+      });
+    };
   }, []);
 
   const handleRefreshStats = async () => {

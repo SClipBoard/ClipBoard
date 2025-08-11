@@ -31,10 +31,17 @@ export interface UploadRequest {
   mimeType?: string; // MIME类型（仅文件类型）
 }
 
+// 连接统计信息类型
+export interface ConnectionStats {
+  totalConnections: number;
+  activeConnections: number;
+  connectedDevices: Array<{ deviceId: string; connectionId: string }>;
+}
+
 // WebSocket消息类型
 export interface WebSocketMessage {
-  type: 'sync' | 'delete' | 'get_all_text' | 'get_all_images' | 'get_latest' | 'all_text' | 'all_images' | 'latest' | 'error' | 'pong' | 'ping' | 'new_item' | 'delete_item';
-  data?: ClipboardItem | ClipboardItem[] | string | number | Record<string, unknown>;
+  type: 'sync' | 'delete' | 'get_all_text' | 'get_all_images' | 'get_latest' | 'all_text' | 'all_images' | 'latest' | 'error' | 'pong' | 'ping' | 'new_item' | 'delete_item' | 'connection_stats';
+  data?: ClipboardItem | ClipboardItem[] | ConnectionStats | string | number | Record<string, unknown>;
   id?: string;
   count?: number;
   message?: string;
