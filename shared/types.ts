@@ -2,13 +2,14 @@
 export interface ClipboardItem {
   id: string;
   type: 'text' | 'image' | 'file';
-  content: string;
+  content: string; // 对于文本类型是内容，对于文件类型是文件路径
   deviceId: string;
   createdAt: string;
   updatedAt: string;
   fileName?: string; // 文件名（仅文件类型）
   fileSize?: number; // 文件大小（仅文件类型）
   mimeType?: string; // MIME类型（仅文件类型）
+  filePath?: string; // 文件存储路径（仅文件类型）
 }
 
 
@@ -24,11 +25,18 @@ export interface ApiResponse<T> {
 // 上传请求类型
 export interface UploadRequest {
   type: 'text' | 'image' | 'file';
-  content: string;
+  content: string; // 对于文本类型是内容，对于文件类型可以是base64或文件路径
   deviceId: string;
   fileName?: string; // 文件名（仅文件类型）
   fileSize?: number; // 文件大小（仅文件类型）
   mimeType?: string; // MIME类型（仅文件类型）
+}
+
+// 文件上传请求类型（用于multipart/form-data）
+export interface FileUploadRequest {
+  type: 'file' | 'image';
+  deviceId: string;
+  fileName?: string; // 可选，如果不提供则使用上传文件的原始名称
 }
 
 // 连接统计信息类型

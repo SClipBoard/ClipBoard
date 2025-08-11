@@ -11,6 +11,7 @@ import path from 'path';
 import clipboardRoutes from './routes/clipboard.js';
 import devicesRoutes from './routes/devices.js';
 import configRoutes from './routes/config.js';
+import filesRoutes from './routes/files.js';
 import websocketDocsRoutes from './routes/websocket-docs.js';
 import { setupSwagger } from './swagger.js';
 
@@ -25,8 +26,8 @@ dotenv.config();
 const app: express.Application = express();
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50gb' })); // 移除实际限制，设置一个很大的值
+app.use(express.urlencoded({ extended: true, limit: '50gb' }));
 
 // 静态文件服务 - 服务前端打包后的文件
 app.use(express.static(path.join(__dirname, '../')));
@@ -43,6 +44,7 @@ setupSwagger(app);
 app.use('/api/clipboard', clipboardRoutes);
 app.use('/api/devices', devicesRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/files', filesRoutes);
 // WebSocket文档路由（仅用于Swagger文档生成）
 app.use('/api', websocketDocsRoutes);
 

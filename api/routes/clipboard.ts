@@ -1,9 +1,11 @@
 import express, { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams } from '../types/shared';
+import type { ClipboardItem, ApiResponse, UploadRequest, PaginationParams, FileUploadRequest } from '../types/shared';
 import { ClipboardItemDAO } from '../database.js';
 import { getWebSocketManager } from '../server.js';
 import { readUserConfig } from './config.js';
+import { uploadSingle, handleUploadError } from '../middleware/upload.js';
+import { saveFileFromBase64 } from '../utils/fileStorage.js';
 
 const router: express.Router = express.Router();
 
@@ -150,6 +152,133 @@ router.get('/', async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /clipboard/upload:
+ *   post:
+ *     tags: [Clipboard]
+ *     summary: 上传文件到剪切板
+ *     description: |
+ *       通过multipart/form-data上传文件到剪切板，支持所有文件类型，不限制大小
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: 要上传的文件
+ *               type:
+ *                 type: string
+ *                 enum: [file, image]
+ *                 description: 文件类型
+ *               deviceId:
+ *                 type: string
+ *                 description: 设备ID
+ *               fileName:
+ *                 type: string
+ *                 description: 自定义文件名（可选）
+ *             required:
+ *               - file
+ *               - type
+ *               - deviceId
+ *     responses:
+ *       201:
+ *         description: 上传成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/ClipboardItem'
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/upload', uploadSingle, handleUploadError, async (req: Request, res: Response) => {
+  try {
+    const { type, deviceId, fileName }: FileUploadRequest = req.body;
+    const uploadedFile = req.file;
+
+    // 验证必需字段
+    if (!type || !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必需字段: type, deviceId'
+      });
+    }
+
+    // 验证文件
+    if (!uploadedFile) {
+      return res.status(400).json({
+        success: false,
+        message: '未上传文件'
+      });
+    }
+
+    // 验证类型
+    if (type !== 'file' && type !== 'image') {
+      return res.status(400).json({
+        success: false,
+        message: '无效的内容类型，只支持 file 或 image'
+      });
+    }
+
+    // 创建新的剪切板项
+    const newItemData: Omit<ClipboardItem, 'createdAt' | 'updatedAt'> = {
+      id: uuidv4(),
+      type,
+      content: uploadedFile.filename, // 存储文件名作为内容标识
+      deviceId,
+      fileName: fileName || uploadedFile.originalname,
+      fileSize: uploadedFile.size,
+      mimeType: uploadedFile.mimetype,
+      filePath: uploadedFile.filename // 存储文件路径
+    };
+
+    // 使用数据库DAO创建项目
+    const newItem = await ClipboardItemDAO.create(newItemData);
+
+    // 自动清理：检查是否超过最大条目数（在创建新项目后执行）
+    await autoCleanupIfNeeded();
+
+    // 通过WebSocket广播新内容
+    const wsManager = getWebSocketManager();
+    if (wsManager) {
+      wsManager.broadcastNewItem(newItem);
+    }
+
+    const response: ApiResponse<ClipboardItem> = {
+      success: true,
+      data: newItem,
+      message: '文件上传成功'
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('上传文件失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '上传文件失败'
+    });
+  }
+});
+
+/**
+ * @swagger
  * /clipboard:
  *   post:
  *     tags: [Clipboard]
@@ -265,6 +394,7 @@ router.post('/', async (req: Request, res: Response) => {
       fileName?: string;
       fileSize?: number;
       mimeType?: string;
+      filePath?: string;
     } = {
       id: uuidv4(),
       type,
@@ -272,14 +402,30 @@ router.post('/', async (req: Request, res: Response) => {
       deviceId
     };
 
-    // 如果是文件类型，添加文件相关信息
-    if (type === 'file') {
-      if (!fileName) {
+    // 如果是文件或图片类型，处理文件存储
+    if (type === 'file' || type === 'image') {
+      if (type === 'file' && !fileName) {
         return res.status(400).json({
           success: false,
           message: '文件类型需要提供文件名'
         });
       }
+
+      // 如果content是base64数据，保存到临时目录
+      if (content.startsWith('data:') || content.match(/^[A-Za-z0-9+/]+=*$/)) {
+        try {
+          const savedFileName = await saveFileFromBase64(content, fileName || 'file');
+          newItemData.content = savedFileName; // 存储文件名作为内容标识
+          newItemData.filePath = savedFileName; // 存储文件路径
+        } catch (error) {
+          console.error('保存base64文件失败:', error);
+          return res.status(500).json({
+            success: false,
+            message: '保存文件失败'
+          });
+        }
+      }
+
       newItemData.fileName = fileName;
       newItemData.fileSize = fileSize;
       newItemData.mimeType = mimeType;

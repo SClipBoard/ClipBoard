@@ -40,14 +40,8 @@ export default function Upload() {
       return;
     }
 
-    // 检查文件大小 (限制为5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadResult({
-        success: false,
-        error: '图片文件大小不能超过5MB'
-      });
-      return;
-    }
+    // 移除文件大小限制
+    // 注意：现在支持任意大小的文件上传
 
     setImageFile(file);
     setUploadResult(null);
@@ -93,14 +87,8 @@ export default function Upload() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // 检查文件大小 (限制为10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadResult({
-        success: false,
-        error: '文件大小不能超过10MB'
-      });
-      return;
-    }
+    // 移除文件大小限制
+    // 注意：现在支持任意大小的文件上传
 
     setSelectedFile(file);
     setUploadResult(null);
@@ -157,7 +145,26 @@ export default function Upload() {
         });
         return;
       }
-      uploadData.content = imagePreview;
+
+      // 使用新的文件上传API
+      try {
+        const item = await apiClient.uploadFile(imageFile, 'image', deviceId);
+        setUploadResult({
+          success: true,
+          item
+        });
+        clearImage();
+        setUploading(false);
+        return;
+      } catch (error) {
+        console.error('图片上传失败:', error);
+        setUploadResult({
+          success: false,
+          error: error instanceof Error ? error.message : '图片上传失败，请重试'
+        });
+        setUploading(false);
+        return;
+      }
     } else if (uploadType === 'file') {
       if (!selectedFile) {
         setUploadResult({
@@ -166,49 +173,53 @@ export default function Upload() {
         });
         return;
       }
-      
-      // 将文件转换为base64
-      const reader = new FileReader();
-      const fileContent = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-      
-      uploadData.content = fileContent;
-      uploadData.fileName = selectedFile.name;
-      uploadData.fileSize = selectedFile.size;
-      uploadData.mimeType = selectedFile.type;
+
+      // 使用新的文件上传API
+      try {
+        const item = await apiClient.uploadFile(selectedFile, 'file', deviceId);
+        setUploadResult({
+          success: true,
+          item
+        });
+        clearFile();
+        setUploading(false);
+        return;
+      } catch (error) {
+        console.error('文件上传失败:', error);
+        setUploadResult({
+          success: false,
+          error: error instanceof Error ? error.message : '文件上传失败，请重试'
+        });
+        setUploading(false);
+        return;
+      }
     }
 
-    setUploading(true);
-    setUploadResult(null);
+    // 只有文本类型走这里，文件和图片已经在上面处理了
+    if (uploadType === 'text') {
+      setUploading(true);
+      setUploadResult(null);
 
-    try {
-      const item = await apiClient.createClipboardItem(uploadData);
+      try {
+        const item = await apiClient.createClipboardItem(uploadData);
 
-      setUploadResult({
-        success: true,
-        item
-      });
+        setUploadResult({
+          success: true,
+          item
+        });
 
-      // 清空表单
-      if (uploadType === 'text') {
+        // 清空表单
         setTextContent('');
-      } else if (uploadType === 'image') {
-        clearImage();
-      } else if (uploadType === 'file') {
-        clearFile();
-      }
 
-    } catch (error) {
-      console.error('上传失败:', error);
-      setUploadResult({
-        success: false,
-        error: error instanceof Error ? error.message : '上传失败，请重试'
-      });
-    } finally {
-      setUploading(false);
+      } catch (error) {
+        console.error('上传失败:', error);
+        setUploadResult({
+          success: false,
+          error: error instanceof Error ? error.message : '上传失败，请重试'
+        });
+      } finally {
+        setUploading(false);
+      }
     }
   }, [uploadType, textContent, imageFile, imagePreview, selectedFile, uploading, clearImage, clearFile]);
 
@@ -367,7 +378,7 @@ export default function Upload() {
                     点击选择图片或拖拽到此处
                   </p>
                   <p className="text-sm text-gray-500">
-                    支持 JPG、PNG、GIF 格式，最大 5MB
+                    支持 JPG、PNG、GIF 等所有图片格式，无大小限制
                   </p>
                   <input
                     ref={fileInputRef}
@@ -422,7 +433,7 @@ export default function Upload() {
                     点击选择文件
                   </p>
                   <p className="text-sm text-gray-500">
-                    支持文档、压缩包等各种格式，最大 10MB
+                    支持文档、压缩包、视频、音频等所有格式，无大小限制
                   </p>
                   <input
                     ref={generalFileInputRef}

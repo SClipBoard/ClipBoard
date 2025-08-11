@@ -129,6 +129,10 @@ const swaggerOptions: swaggerJSDoc.Options = {
               type: 'string',
               description: 'MIME类型（文件类型时使用）'
             },
+            filePath: {
+              type: 'string',
+              description: '文件存储路径（文件类型时使用）'
+            },
             createdAt: {
               type: 'string',
               format: 'date-time',
@@ -152,7 +156,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
             },
             content: {
               type: 'string',
-              description: '内容数据：文本类型为纯文本；图片类型为Base64编码的图片数据；文件类型为Base64编码的文件数据'
+              description: '内容数据：文本类型为纯文本；图片和文件类型可以是Base64编码数据或使用/api/clipboard/upload接口上传'
             },
             deviceId: {
               type: 'string',
@@ -397,6 +401,10 @@ const swaggerOptions: swaggerJSDoc.Options = {
       {
         name: 'Config',
         description: '配置管理接口'
+      },
+      {
+        name: 'Files',
+        description: '文件管理接口'
       },
       {
         name: 'WebSocket',

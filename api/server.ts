@@ -1,11 +1,16 @@
 /**
  * local server entry file, for local development
  */
+
+// 设置Node.js的一些限制以支持大文件上传
+process.env.NODE_OPTIONS = '--max-old-space-size=8192'; // 增加内存限制到8GB
+
 import app from './app.js';
 import WebSocketManager from './websocket.js';
 import { initDatabase } from './database.js';
 import config from './config/index.js';
 import { readUserConfig } from './routes/config.js';
+import { fileCleanupScheduler } from './utils/fileCleanup.js';
 
 // 全局WebSocket管理器实例
 let wsManager: WebSocketManager | null = null;
@@ -55,6 +60,14 @@ async function startServer() {
       }
     } catch (error) {
       console.warn('加载WebSocket安全配置失败:', error);
+    }
+
+    // 启动文件清理调度器
+    try {
+      fileCleanupScheduler.start(24, false); // 每24小时清理一次，启动时不立即执行
+      console.log('文件清理调度器已启动，将在24小时后开始定期清理');
+    } catch (error) {
+      console.warn('启动文件清理调度器失败:', error);
     }
 
     return { server, wsManager };

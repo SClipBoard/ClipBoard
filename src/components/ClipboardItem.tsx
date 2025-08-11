@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Copy, Trash2, Image, FileText, File, Check, X, Download } from 'lucide-react';
 import type { ClipboardItem as ClipboardItemType } from '../../shared/types';
+import { getApiBaseUrl } from '../lib/config';
 
 interface ClipboardItemProps {
   item: ClipboardItemType;
@@ -14,8 +15,19 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(item.content);
-      onCopy(item.content);
+      let copyContent = item.content;
+
+      // 对于文件类型，复制文件名而不是文件路径
+      if (item.type === 'file' && item.fileName) {
+        copyContent = item.fileName;
+      }
+      // 对于图片类型，如果是新的文件存储方式，复制文件名
+      else if (item.type === 'image' && item.filePath && item.fileName) {
+        copyContent = item.fileName;
+      }
+
+      await navigator.clipboard.writeText(copyContent);
+      onCopy(copyContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -52,15 +64,20 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
 
   const renderContent = () => {
     if (item.type === 'image') {
+      // 判断是否是新的文件存储方式（有filePath）还是旧的base64方式
+      const imageUrl = item.filePath
+        ? `${getApiBaseUrl()}/files/${item.id}/preview`
+        : item.content;
+
       return (
         <div className="flex items-center space-x-3">
           <div className="flex-shrink-0">
             <Image className="w-8 h-8 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <img 
-              src={item.content} 
-              alt="剪切板图片" 
+            <img
+              src={imageUrl}
+              alt="剪切板图片"
               className="max-w-full max-h-32 rounded-lg object-contain"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
@@ -101,8 +118,13 @@ export default function ClipboardItem({ item, onDelete, onCopy }: ClipboardItemP
                 </h4>
                 <button
                   onClick={() => {
+                    // 判断是否是新的文件存储方式（有filePath）还是旧的base64方式
+                    const downloadUrl = item.filePath
+                      ? `${getApiBaseUrl()}/files/${item.id}`
+                      : item.content;
+
                     const link = document.createElement('a');
-                    link.href = item.content;
+                    link.href = downloadUrl;
                     link.download = item.fileName || 'download';
                     link.click();
                   }}

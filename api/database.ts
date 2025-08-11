@@ -40,11 +40,12 @@ async function createClipboardItemsTable(): Promise<void> {
     CREATE TABLE IF NOT EXISTS clipboard_items (
         id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
         type ENUM('text', 'image', 'file') NOT NULL COMMENT '内容类型：文本、图片或文件',
-        content LONGTEXT NOT NULL COMMENT '内容数据（文字内容、图片base64或文件base64）',
+        content LONGTEXT NOT NULL COMMENT '内容数据（文字内容或文件路径）',
         device_id VARCHAR(100) NOT NULL COMMENT '设备标识',
         file_name VARCHAR(255) NULL COMMENT '文件名（仅文件类型）',
         file_size BIGINT NULL COMMENT '文件大小（仅文件类型）',
         mime_type VARCHAR(100) NULL COMMENT 'MIME类型（仅文件类型）',
+        file_path VARCHAR(500) NULL COMMENT '文件存储路径（仅文件类型）',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='剪切板内容表'
@@ -82,8 +83,8 @@ async function ensureFileFields(): Promise<void> {
     // 检查字段是否存在
     const columns = await query<{Field: string; Type: string}>('SHOW COLUMNS FROM clipboard_items');
     const columnNames = columns.map(col => col.Field);
-    
-    const requiredFields = ['file_name', 'file_size', 'mime_type'];
+
+    const requiredFields = ['file_name', 'file_size', 'mime_type', 'file_path'];
     const missingFields = requiredFields.filter(field => !columnNames.includes(field));
     
     if (missingFields.length > 0) {
@@ -99,6 +100,9 @@ async function ensureFileFields(): Promise<void> {
       }
       if (missingFields.includes('mime_type')) {
         alterSqls.push('ALTER TABLE clipboard_items ADD COLUMN mime_type VARCHAR(100) NULL COMMENT \'MIME类型（仅文件类型）\'');
+      }
+      if (missingFields.includes('file_path')) {
+        alterSqls.push('ALTER TABLE clipboard_items ADD COLUMN file_path VARCHAR(500) NULL COMMENT \'文件存储路径（仅文件类型）\'');
       }
       
       for (const sql of alterSqls) {
@@ -270,7 +274,7 @@ export class ClipboardItemDAO {
     const dataSql = `
       SELECT id, type, content, device_id as deviceId,
              file_name as fileName, file_size as fileSize, mime_type as mimeType,
-             created_at as createdAt, updated_at as updatedAt
+             file_path as filePath, created_at as createdAt, updated_at as updatedAt
       FROM clipboard_items
       ${whereClause}
       ORDER BY created_at DESC
@@ -287,10 +291,10 @@ export class ClipboardItemDAO {
    */
   static async getById(id: string): Promise<ClipboardItem | null> {
     const sql = `
-      SELECT id, type, content, device_id as deviceId, 
+      SELECT id, type, content, device_id as deviceId,
              file_name as fileName, file_size as fileSize, mime_type as mimeType,
-             created_at as createdAt, updated_at as updatedAt
-      FROM clipboard_items 
+             file_path as filePath, created_at as createdAt, updated_at as updatedAt
+      FROM clipboard_items
       WHERE id = ?
     `;
     
@@ -304,13 +308,23 @@ export class ClipboardItemDAO {
   static async create(item: Omit<ClipboardItem, 'createdAt' | 'updatedAt'>): Promise<ClipboardItem> {
     let sql: string;
     let params: unknown[];
-    
-    if (item.type === 'file') {
+
+    if (item.type === 'file' || item.type === 'image') {
       sql = `
-        INSERT INTO clipboard_items (id, type, content, device_id, file_name, file_size, mime_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clipboard_items (id, type, content, device_id, file_name, file_size, mime_type, file_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      params = [item.id, item.type, item.content, item.deviceId, item.fileName, item.fileSize, item.mimeType];
+      // 将undefined值转换为null，避免MySQL错误
+      params = [
+        item.id,
+        item.type,
+        item.content,
+        item.deviceId,
+        item.fileName ?? null,
+        item.fileSize ?? null,
+        item.mimeType ?? null,
+        item.filePath ?? null
+      ];
     } else {
       sql = `
         INSERT INTO clipboard_items (id, type, content, device_id)
@@ -333,8 +347,25 @@ export class ClipboardItemDAO {
    * 删除剪切板内容
    */
   static async delete(id: string): Promise<boolean> {
+    // 先获取要删除的项目信息，以便删除对应的文件
+    const item = await this.getById(id);
+
+    // 删除数据库记录
     const sql = 'DELETE FROM clipboard_items WHERE id = ?';
     const result = await execute(sql, [id]);
+
+    // 如果数据库删除成功且是文件类型，则删除对应的物理文件
+    if (result.affectedRows > 0 && item && (item.type === 'file' || item.type === 'image') && item.filePath) {
+      try {
+        const { deleteFile } = await import('./utils/fileStorage.js');
+        await deleteFile(item.filePath);
+        console.log(`已删除文件: ${item.filePath}`);
+      } catch (error) {
+        console.error(`删除文件失败: ${item.filePath}`, error);
+        // 文件删除失败不影响数据库删除的结果
+      }
+    }
+
     return result.affectedRows > 0;
   }
   
@@ -343,11 +374,11 @@ export class ClipboardItemDAO {
    */
   static async getByType(type: 'text' | 'image' | 'file'): Promise<ClipboardItem[]> {
     const sql = `
-      SELECT id, type, content, device_id as deviceId, 
+      SELECT id, type, content, device_id as deviceId,
              file_name as fileName, file_size as fileSize, mime_type as mimeType,
-             created_at as createdAt, updated_at as updatedAt
-      FROM clipboard_items 
-      WHERE type = ? 
+             file_path as filePath, created_at as createdAt, updated_at as updatedAt
+      FROM clipboard_items
+      WHERE type = ?
       ORDER BY created_at DESC
     `;
     
@@ -359,11 +390,11 @@ export class ClipboardItemDAO {
    */
   static async getLatest(count: number): Promise<ClipboardItem[]> {
     const sql = `
-      SELECT id, type, content, device_id as deviceId, 
+      SELECT id, type, content, device_id as deviceId,
              file_name as fileName, file_size as fileSize, mime_type as mimeType,
-             created_at as createdAt, updated_at as updatedAt
-      FROM clipboard_items 
-      ORDER BY created_at DESC 
+             file_path as filePath, created_at as createdAt, updated_at as updatedAt
+      FROM clipboard_items
+      ORDER BY created_at DESC
       LIMIT ?
     `;
     
@@ -392,20 +423,55 @@ export class ClipboardItemDAO {
       const keepItems = await query<{ id: string }>(keepItemsSql);
 
       if (keepItems.length === 0) {
-        // 如果没有要保留的项目，删除所有项目
+        // 如果没有要保留的项目，先获取所有文件项目信息，然后删除所有项目
+        const allFileItems = await query<{ id: string; filePath: string }>('SELECT id, file_path as filePath FROM clipboard_items WHERE (type = "file" OR type = "image") AND file_path IS NOT NULL');
+
         const deleteAllSql = 'DELETE FROM clipboard_items';
         const result = await execute(deleteAllSql);
+
+        // 删除对应的物理文件
+        if (result.affectedRows > 0 && allFileItems.length > 0) {
+          const { deleteFile } = await import('./utils/fileStorage.js');
+          for (const item of allFileItems) {
+            if (item.filePath) {
+              try {
+                await deleteFile(item.filePath);
+                console.log(`已删除文件: ${item.filePath}`);
+              } catch (error) {
+                console.error(`删除文件失败: ${item.filePath}`, error);
+              }
+            }
+          }
+        }
+
         return result.affectedRows;
       }
 
-      // 删除不在保留列表中的项目
+      // 先获取要删除的文件项目信息
       const keepIds = keepItems.map(item => item.id);
-
-      // 使用字符串拼接而不是参数化查询
       const quotedIds = keepIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
-      const deleteSql = `DELETE FROM clipboard_items WHERE id NOT IN (${quotedIds})`;
 
+      const toDeleteFileItems = await query<{ id: string; filePath: string }>(`SELECT id, file_path as filePath FROM clipboard_items WHERE (type = "file" OR type = "image") AND file_path IS NOT NULL AND id NOT IN (${quotedIds})`);
+
+      // 删除不在保留列表中的项目
+      const deleteSql = `DELETE FROM clipboard_items WHERE id NOT IN (${quotedIds})`;
       const result = await execute(deleteSql);
+
+      // 删除对应的物理文件
+      if (result.affectedRows > 0 && toDeleteFileItems.length > 0) {
+        const { deleteFile } = await import('./utils/fileStorage.js');
+        for (const item of toDeleteFileItems) {
+          if (item.filePath) {
+            try {
+              await deleteFile(item.filePath);
+              console.log(`已删除文件: ${item.filePath}`);
+            } catch (error) {
+              console.error(`删除文件失败: ${item.filePath}`, error);
+            }
+          }
+        }
+      }
+
       return result.affectedRows;
     } catch (error) {
       console.error('cleanupByCount 执行失败:', error);
@@ -443,8 +509,28 @@ export class ClipboardItemDAO {
 
       // 如果 limit 为 0，删除所有文件
       if (limit === 0) {
+        // 先获取所有要删除的文件信息
+        const allFileItems = await this.getByType('file');
+
+        // 删除数据库记录
         const deleteSql = 'DELETE FROM clipboard_items WHERE type = \'file\'';
         const result = await execute(deleteSql);
+
+        // 删除对应的物理文件
+        if (result.affectedRows > 0) {
+          const { deleteFile } = await import('./utils/fileStorage.js');
+          for (const item of allFileItems) {
+            if (item.filePath) {
+              try {
+                await deleteFile(item.filePath);
+                console.log(`已删除文件: ${item.filePath}`);
+              } catch (error) {
+                console.error(`删除文件失败: ${item.filePath}`, error);
+              }
+            }
+          }
+        }
+
         console.log(`删除所有文件，删除数量: ${result.affectedRows}`);
         return result.affectedRows;
       }
@@ -485,11 +571,31 @@ export class ClipboardItemDAO {
       const keepIds = keepItems.map(item => item.id);
       const quotedIds = keepIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
 
-      // 删除不在保留列表中的文件
+      // 先获取要删除的文件信息
+      const toDeleteSql = `SELECT id, file_path as filePath FROM clipboard_items WHERE type = 'file' AND id NOT IN (${quotedIds})`;
+      const toDeleteItems = await query<{ id: string; filePath: string }>(toDeleteSql);
+
+      // 删除不在保留列表中的文件记录
       const deleteSql = `DELETE FROM clipboard_items WHERE type = 'file' AND id NOT IN (${quotedIds})`;
 
       console.log(`执行删除: ${deleteSql}`);
       const result = await execute(deleteSql);
+
+      // 删除对应的物理文件
+      if (result.affectedRows > 0) {
+        const { deleteFile } = await import('./utils/fileStorage.js');
+        for (const item of toDeleteItems) {
+          if (item.filePath) {
+            try {
+              await deleteFile(item.filePath);
+              console.log(`已删除文件: ${item.filePath}`);
+            } catch (error) {
+              console.error(`删除文件失败: ${item.filePath}`, error);
+            }
+          }
+        }
+      }
+
       console.log(`删除完成，删除数量: ${result.affectedRows}`);
       return result.affectedRows;
     } catch (error) {
@@ -544,9 +650,43 @@ export class ClipboardItemDAO {
    * 删除所有内容
    */
   static async deleteAll(): Promise<number> {
+    // 先获取所有文件项目信息
+    const allFileItems = await query<{ id: string; filePath: string }>('SELECT id, file_path as filePath FROM clipboard_items WHERE (type = "file" OR type = "image") AND file_path IS NOT NULL');
+
+    // 删除数据库记录
     const sql = 'DELETE FROM clipboard_items';
     const result = await execute(sql);
+
+    // 删除对应的物理文件
+    if (result.affectedRows > 0 && allFileItems.length > 0) {
+      const { deleteFile } = await import('./utils/fileStorage.js');
+      for (const item of allFileItems) {
+        if (item.filePath) {
+          try {
+            await deleteFile(item.filePath);
+            console.log(`已删除文件: ${item.filePath}`);
+          } catch (error) {
+            console.error(`删除文件失败: ${item.filePath}`, error);
+          }
+        }
+      }
+    }
+
     return result.affectedRows;
+  }
+
+  /**
+   * 获取所有有效的文件路径
+   */
+  static async getAllFilePaths(): Promise<string[]> {
+    const sql = `
+      SELECT DISTINCT file_path
+      FROM clipboard_items
+      WHERE file_path IS NOT NULL AND file_path != ''
+    `;
+
+    const result = await query<{ file_path: string }>(sql);
+    return result.map(row => row.file_path).filter(path => path);
   }
 
   /**

@@ -99,6 +99,57 @@ class ApiClient {
     return response.data;
   }
 
+  async uploadFile(file: File, type: 'file' | 'image', deviceId: string, fileName?: string): Promise<ClipboardItem> {
+    const url = `${getApiBaseUrl()}/clipboard/upload`;
+
+    // 获取安全配置的请求头
+    let securityHeaders: Record<string, string> = {};
+    try {
+      const securityConfig = localStorage.getItem('security-config');
+      if (securityConfig) {
+        const parsed = JSON.parse(securityConfig);
+        const config = parsed.state?.config || {};
+
+        if (config.customHeaderKey?.trim() && config.customHeaderValue?.trim()) {
+          securityHeaders[config.customHeaderKey.trim()] = config.customHeaderValue.trim();
+        }
+      }
+    } catch (error) {
+      console.warn('获取安全配置失败:', error);
+      securityHeaders = useSecurityStore.getState().getHeaders();
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    formData.append('deviceId', deviceId);
+    if (fileName) {
+      formData.append('fileName', fileName);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...securityHeaders,
+          // 不设置Content-Type，让浏览器自动设置multipart/form-data边界
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || '文件上传失败');
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('文件上传错误:', error);
+      throw error;
+    }
+  }
+
   async deleteClipboardItem(id: string): Promise<void> {
     await this.request(`/clipboard/${id}`, {
       method: 'DELETE',
