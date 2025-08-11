@@ -8,12 +8,18 @@ import { useSecurityStore } from '../lib/security-store';
 interface AppConfig {
   maxItems: number;
   autoCleanupDays: number;
+  fileCleanup?: {
+    enabled: boolean;
+    maxFileCount: number;
+    strategy: 'oldest_first' | 'largest_first';
+  };
 }
 
 interface StorageStats {
   totalItems: number;
   textItems: number;
   imageItems: number;
+  fileItems: number;
   totalSize: string;
 }
 
@@ -23,12 +29,18 @@ export default function Settings() {
 
   const [config, setConfig] = useState<AppConfig>({
     maxItems: 1000,
-    autoCleanupDays: 30
+    autoCleanupDays: 30,
+    fileCleanup: {
+      enabled: false,
+      maxFileCount: 100,
+      strategy: 'oldest_first'
+    }
   });
   const [storageStats, setStorageStats] = useState<StorageStats>({
     totalItems: 0,
     textItems: 0,
     imageItems: 0,
+    fileItems: 0,
     totalSize: '0 MB'
   });
   const [loading, setLoading] = useState(true);
@@ -36,10 +48,12 @@ export default function Settings() {
   const [savingSecurityConfig, setSavingSecurityConfig] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [cleaningFiles, setCleaningFiles] = useState(false);
   const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
   const [securitySaveResult, setSecuritySaveResult] = useState<{ success: boolean; message: string } | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
   const [clearResult, setClearResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
+  const [fileCleanupResult, setFileCleanupResult] = useState<{ success: boolean; message: string; deletedCount?: number } | null>(null);
 
 
   // 加载数据
@@ -48,12 +62,18 @@ export default function Settings() {
       const [configData, statsData] = await Promise.all([
         apiClient.getConfig().catch(() => ({
           maxItems: 1000,
-          autoCleanupDays: 30
+          autoCleanupDays: 30,
+          fileCleanup: {
+            enabled: false,
+            maxFileCount: 100,
+            strategy: 'oldest_first'
+          }
         })), // 如果获取配置失败，使用默认配置
         apiClient.getStorageStats().catch(() => ({
           totalItems: 0,
           textItems: 0,
           imageItems: 0,
+          fileItems: 0,
           totalSize: '0 MB'
         })) // 如果获取统计失败，使用默认值
       ]);
@@ -170,6 +190,42 @@ export default function Settings() {
     }
   }, [config.autoCleanupDays, config.maxItems]);
 
+  // 文件清理
+  const handleFileCleanup = useCallback(async () => {
+    if (!config.fileCleanup?.enabled) {
+      return;
+    }
+
+    setCleaningFiles(true);
+    setFileCleanupResult(null);
+
+    try {
+      const result = await apiClient.cleanupFiles({
+        maxFileCount: config.fileCleanup.maxFileCount,
+        strategy: config.fileCleanup.strategy
+      });
+
+      setFileCleanupResult({
+        success: true,
+        message: `文件清理完成，删除了 ${result.deletedCount} 个文件，剩余 ${result.remainingCount} 个文件`,
+        deletedCount: result.deletedCount
+      });
+
+      // 重新加载统计数据
+      const newStats = await apiClient.getStorageStats();
+      setStorageStats(newStats);
+    } catch (error) {
+      console.error('文件清理失败:', error);
+      setFileCleanupResult({
+        success: false,
+        message: '文件清理失败，请重试'
+      });
+    } finally {
+      setCleaningFiles(false);
+      setTimeout(() => setFileCleanupResult(null), 5000);
+    }
+  }, [config.fileCleanup]);
+
   // 清空所有内容
   const handleClearAll = useCallback(async () => {
     if (!window.confirm('确定要清空所有内容吗？此操作不可恢复！')) {
@@ -257,7 +313,7 @@ export default function Settings() {
             <Database className="w-5 h-5" />
             <span>存储统计</span>
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-blue-50 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-2">
                 <HardDrive className="w-5 h-5 text-blue-600" />
@@ -279,6 +335,13 @@ export default function Settings() {
               </div>
               <div className="text-2xl font-bold text-purple-900">{storageStats.imageItems}</div>
               <div className="text-sm text-purple-600">项内容</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <span className="text-sm font-medium text-red-900">文件</span>
+              </div>
+              <div className="text-2xl font-bold text-red-900">{storageStats.fileItems}</div>
+              <div className="text-sm text-red-600">项内容</div>
             </div>
             <div className="bg-orange-50 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-2">
@@ -401,6 +464,105 @@ export default function Settings() {
               <p className="text-sm text-gray-500 mt-1">自动删除超过指定天数的内容</p>
             </div>
 
+            {/* 文件清理配置 */}
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-red-900 mb-3 flex items-center space-x-2">
+                <Trash2 className="w-4 h-4" />
+                <span>文件清理策略</span>
+              </h3>
+
+              <div className="space-y-4">
+                {/* 启用文件清理 */}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="fileCleanupEnabled"
+                    checked={config.fileCleanup?.enabled || false}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      fileCleanup: {
+                        ...prev.fileCleanup,
+                        enabled: e.target.checked,
+                        maxFileCount: prev.fileCleanup?.maxFileCount || 100,
+                        strategy: prev.fileCleanup?.strategy || 'oldest_first'
+                      }
+                    }))}
+                    className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 focus:ring-2"
+                  />
+                  <label htmlFor="fileCleanupEnabled" className="text-sm font-medium text-red-900">
+                    启用文件清理
+                  </label>
+                </div>
+
+                {config.fileCleanup?.enabled && (
+                  <>
+                    {/* 最大文件数量 */}
+                    <div>
+                      <label className="block text-sm font-medium text-red-900 mb-2">
+                        最大文件数量
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={config.fileCleanup?.maxFileCount || 100}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          fileCleanup: {
+                            ...prev.fileCleanup!,
+                            maxFileCount: parseInt(e.target.value) || 100
+                          }
+                        }))}
+                        className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                      />
+                      <p className="text-sm text-red-600 mt-1">超过此数量时将自动删除多余的文件</p>
+                    </div>
+
+                    {/* 清理策略 */}
+                    <div>
+                      <label className="block text-sm font-medium text-red-900 mb-2">
+                        清理策略
+                      </label>
+                      <select
+                        value={config.fileCleanup?.strategy || 'oldest_first'}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          fileCleanup: {
+                            ...prev.fileCleanup!,
+                            strategy: e.target.value as 'oldest_first' | 'largest_first'
+                          }
+                        }))}
+                        className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                      >
+                        <option value="oldest_first">最旧优先 - 删除创建时间最早的文件</option>
+                        <option value="largest_first">最大优先 - 删除文件大小最大的文件</option>
+                      </select>
+                      <p className="text-sm text-red-600 mt-1">选择文件清理时的删除顺序</p>
+                    </div>
+
+                    {/* 立即清理文件按钮 */}
+                    <div className="pt-2 border-t border-red-200">
+                      <button
+                        onClick={handleFileCleanup}
+                        disabled={cleaningFiles}
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                          cleaningFiles
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                        }`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>{cleaningFiles ? '清理中...' : '立即清理文件'}</span>
+                      </button>
+                      <p className="text-sm text-red-600 mt-2">
+                        将按照设定的策略清理多余的文件，保留最新的 {config.fileCleanup?.maxFileCount || 100} 个文件
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* 操作按钮 */}
             <div className="pt-4 border-t border-gray-200 space-y-4">
               <div>
@@ -443,22 +605,22 @@ export default function Settings() {
         </div>
 
         {/* 操作结果提示 */}
-        {(saveResult || securitySaveResult || cleanupResult || clearResult) && (
+        {(saveResult || securitySaveResult || cleanupResult || clearResult || fileCleanupResult) && (
           <div className={`rounded-lg p-4 mb-6 ${
-            (saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success)
+            (saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success || fileCleanupResult?.success)
               ? 'bg-green-50 border border-green-200'
               : 'bg-red-50 border border-red-200'
           }`}>
             <div className="flex items-center space-x-2">
-              {(saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success) ? (
+              {(saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success || fileCleanupResult?.success) ? (
                 <Check className="w-5 h-5 text-green-600" />
               ) : (
                 <AlertCircle className="w-5 h-5 text-red-600" />
               )}
               <span className={`font-medium ${
-                (saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success) ? 'text-green-800' : 'text-red-800'
+                (saveResult?.success || securitySaveResult?.success || cleanupResult?.success || clearResult?.success || fileCleanupResult?.success) ? 'text-green-800' : 'text-red-800'
               }`}>
-                {saveResult?.message || securitySaveResult?.message || cleanupResult?.message || clearResult?.message}
+                {saveResult?.message || securitySaveResult?.message || cleanupResult?.message || clearResult?.message || fileCleanupResult?.message}
               </span>
             </div>
           </div>

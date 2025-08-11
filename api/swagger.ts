@@ -148,30 +148,65 @@ const swaggerOptions: swaggerJSDoc.Options = {
             type: {
               type: 'string',
               enum: ['text', 'image', 'file'],
-              description: '内容类型'
+              description: '内容类型：text（文本）、image（图片）、file（文件）'
             },
             content: {
               type: 'string',
-              description: '内容数据'
+              description: '内容数据：文本类型为纯文本；图片类型为Base64编码的图片数据；文件类型为Base64编码的文件数据'
             },
             deviceId: {
               type: 'string',
-              description: '设备ID'
+              description: '设备ID，用于标识上传内容的设备'
             },
             fileName: {
               type: 'string',
-              description: '文件名（文件类型时必需）'
+              description: '文件名（仅文件类型时必需，图片类型可选）'
             },
             fileSize: {
               type: 'number',
-              description: '文件大小（文件类型时可选）'
+              description: '文件大小，单位为字节（文件和图片类型时可选）'
             },
             mimeType: {
               type: 'string',
-              description: 'MIME类型（文件类型时可选）'
+              description: 'MIME类型（文件和图片类型时可选），如：text/plain、image/png、application/pdf等'
             }
           },
-          required: ['type', 'content', 'deviceId']
+          required: ['type', 'content', 'deviceId'],
+          examples: {
+            textExample: {
+              summary: '文本内容示例',
+              description: '上传纯文本内容到剪切板',
+              value: {
+                type: 'text',
+                content: '这是一段文本内容',
+                deviceId: 'device-001'
+              }
+            },
+            imageExample: {
+              summary: '图片内容示例',
+              description: '上传图片内容到剪切板，content字段需要是Base64编码的图片数据',
+              value: {
+                type: 'image',
+                content: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                deviceId: 'device-001',
+                fileName: 'screenshot.png',
+                fileSize: 1024,
+                mimeType: 'image/png'
+              }
+            },
+            fileExample: {
+              summary: '文件内容示例',
+              description: '上传文件内容到剪切板，content字段需要是Base64编码的文件数据，fileName字段必需',
+              value: {
+                type: 'file',
+                content: 'SGVsbG8gV29ybGQh',
+                deviceId: 'device-001',
+                fileName: 'document.txt',
+                fileSize: 12,
+                mimeType: 'text/plain'
+              }
+            }
+          }
         },
         AppConfig: {
           type: 'object',
@@ -217,6 +252,10 @@ const swaggerOptions: swaggerJSDoc.Options = {
             imageItems: {
               type: 'number',
               description: '图片条目数'
+            },
+            fileItems: {
+              type: 'number',
+              description: '文件条目数'
             },
             totalSize: {
               type: 'string',
@@ -380,13 +419,19 @@ export function setupSwagger(app: Application): void {
     customCss: `
       .swagger-ui .topbar { display: none }
       .swagger-ui .info .title { color: #3b82f6 }
+      .swagger-ui .model-example { background-color: #f8f9fa; }
+      .swagger-ui .example-select { margin-bottom: 10px; }
     `,
     customSiteTitle: '剪切板同步服务 API 文档',
     swaggerOptions: {
       persistAuthorization: true,
       displayRequestDuration: true,
       filter: true,
-      tryItOutEnabled: true
+      tryItOutEnabled: true,
+      defaultModelsExpandDepth: 2,
+      defaultModelExpandDepth: 2,
+      showExtensions: true,
+      showCommonExtensions: true
     }
   };
 

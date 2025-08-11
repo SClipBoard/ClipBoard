@@ -1,6 +1,11 @@
 {
   "maxItems": 2,
   "autoCleanupDays": 30,
+  "fileCleanup": {
+    "enabled": true,
+    "maxFileCount": 1,
+    "strategy": "oldest_first"
+  },
   "websocketSecurity": {
     "enabled": true,
     "key": "X-Api-key",

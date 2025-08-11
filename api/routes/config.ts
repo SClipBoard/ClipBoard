@@ -35,6 +35,11 @@ const defaultSystemConfig: AppConfig = {
 const defaultUserConfig = {
   maxItems: 1000,
   autoCleanupDays: 30,
+  fileCleanup: {
+    enabled: false,
+    maxFileCount: 100,
+    strategy: 'oldest_first' as 'oldest_first' | 'largest_first'
+  },
   websocketSecurity: {
     enabled: false,
     key: '',
@@ -260,7 +265,18 @@ router.put('/', async (req: Request, res: Response) => {
  *   post:
  *     tags: [Config]
  *     summary: 清理过期内容
- *     description: 根据指定条件清理过期的剪切板内容
+ *     description: |
+ *       根据指定条件清理过期的剪切板内容，支持多种清理策略：
+ *
+ *       **1. 按总数量清理**
+ *       - maxCount: 保留的最大条目数
+ *
+ *       **2. 按日期清理**
+ *       - beforeDate: 删除此日期之前的内容
+ *
+ *       **3. 按文件数量清理**
+ *       - maxFileCount: 保留的最大文件数量
+ *       - fileCleanupStrategy: 清理策略（oldest_first: 最旧优先，largest_first: 最大优先）
  *     requestBody:
  *       required: false
  *       content:
@@ -275,6 +291,27 @@ router.put('/', async (req: Request, res: Response) => {
  *                 type: string
  *                 format: date
  *                 description: 删除此日期之前的内容
+ *               maxFileCount:
+ *                 type: number
+ *                 description: 保留的最大文件数量
+ *               fileCleanupStrategy:
+ *                 type: string
+ *                 enum: ['oldest_first', 'largest_first']
+ *                 description: 文件清理策略
+ *           examples:
+ *             countCleanup:
+ *               summary: 按总数量清理
+ *               value:
+ *                 maxCount: 500
+ *             dateCleanup:
+ *               summary: 按日期清理
+ *               value:
+ *                 beforeDate: "2024-01-01"
+ *             fileCleanup:
+ *               summary: 按文件数量清理
+ *               value:
+ *                 maxFileCount: 50
+ *                 fileCleanupStrategy: "oldest_first"
  *     responses:
  *       200:
  *         description: 清理成功
@@ -294,6 +331,12 @@ router.put('/', async (req: Request, res: Response) => {
  *                         remainingCount:
  *                           type: number
  *                           description: 剩余的条目数
+ *                         fileDeletedCount:
+ *                           type: number
+ *                           description: 删除的文件数
+ *                         remainingFileCount:
+ *                           type: number
+ *                           description: 剩余的文件数
  *       500:
  *         description: 服务器错误
  *         content:
@@ -303,44 +346,94 @@ router.put('/', async (req: Request, res: Response) => {
  */
 router.post('/cleanup', async (req: Request, res: Response) => {
   try {
-    const { maxCount, beforeDate }: { maxCount?: number; beforeDate?: string } = req.body;
-    const userConfig = await readUserConfig();
-    
-    let deletedCount = 0;
-    const originalCount = await ClipboardItemDAO.getCount();
+    const {
+      maxCount,
+      beforeDate,
+      maxFileCount,
+      fileCleanupStrategy
+    }: {
+      maxCount?: number;
+      beforeDate?: string;
+      maxFileCount?: number;
+      fileCleanupStrategy?: 'oldest_first' | 'largest_first';
+    } = req.body;
 
+    const userConfig = await readUserConfig();
+
+    let deletedCount = 0;
+    let fileDeletedCount = 0;
+    const originalCount = await ClipboardItemDAO.getCount();
+    const originalFileCount = await ClipboardItemDAO.getFileCount();
+
+    // 文件清理优先执行
+    if (maxFileCount && typeof maxFileCount === 'number') {
+      // 按文件数量清理
+      if (originalFileCount > maxFileCount) {
+        const strategy = fileCleanupStrategy || 'oldest_first';
+        fileDeletedCount = await ClipboardItemDAO.cleanupFilesByCount(maxFileCount, strategy);
+        deletedCount += fileDeletedCount;
+      }
+    }
+
+    // 然后执行其他清理策略
     if (maxCount && typeof maxCount === 'number') {
-      // 按数量清理：保留最新的 maxCount 个项目
-      if (originalCount > maxCount) {
-        deletedCount = await ClipboardItemDAO.cleanupByCount(maxCount);
+      // 按总数量清理：保留最新的 maxCount 个项目
+      const currentCount = await ClipboardItemDAO.getCount();
+      if (currentCount > maxCount) {
+        const generalDeleted = await ClipboardItemDAO.cleanupByCount(maxCount);
+        deletedCount += generalDeleted;
       }
     } else if (beforeDate && typeof beforeDate === 'string') {
       // 按日期清理：删除指定日期之前的内容
       const cutoffDate = new Date(beforeDate);
-      deletedCount = await ClipboardItemDAO.cleanupByDate(cutoffDate);
-    } else {
-      // 使用用户配置中的清理策略
+      const dateDeleted = await ClipboardItemDAO.cleanupByDate(cutoffDate);
+      deletedCount += dateDeleted;
+    } else if (!maxFileCount) {
+      // 使用用户配置中的清理策略（仅在没有指定特定清理参数时）
       // 先按日期清理
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - userConfig.autoCleanupDays);
-      deletedCount += await ClipboardItemDAO.cleanupByDate(cutoffDate);
+      const dateDeleted = await ClipboardItemDAO.cleanupByDate(cutoffDate);
+      deletedCount += dateDeleted;
 
       // 再按数量清理
       const currentCount = await ClipboardItemDAO.getCount();
       if (currentCount > userConfig.maxItems) {
-        deletedCount += await ClipboardItemDAO.cleanupByCount(userConfig.maxItems);
+        const countDeleted = await ClipboardItemDAO.cleanupByCount(userConfig.maxItems);
+        deletedCount += countDeleted;
+      }
+
+      // 最后执行文件清理（如果启用）
+      if (userConfig.fileCleanup?.enabled) {
+        const currentFileCount = await ClipboardItemDAO.getFileCount();
+        if (currentFileCount > userConfig.fileCleanup.maxFileCount) {
+          const fileDeleted = await ClipboardItemDAO.cleanupFilesByCount(
+            userConfig.fileCleanup.maxFileCount,
+            userConfig.fileCleanup.strategy
+          );
+          fileDeletedCount += fileDeleted;
+          deletedCount += fileDeleted;
+        }
       }
     }
-    
+
     const remainingCount = await ClipboardItemDAO.getCount();
-    
-    const response: ApiResponse<{ deletedCount: number; remainingCount: number }> = {
+    const remainingFileCount = await ClipboardItemDAO.getFileCount();
+
+    const response: ApiResponse<{
+      deletedCount: number;
+      remainingCount: number;
+      fileDeletedCount: number;
+      remainingFileCount: number;
+    }> = {
       success: true,
       data: {
         deletedCount,
-        remainingCount
+        remainingCount,
+        fileDeletedCount,
+        remainingFileCount
       },
-      message: `清理完成，删除了 ${deletedCount} 个项目`
+      message: `清理完成，删除了 ${deletedCount} 个项目${fileDeletedCount > 0 ? `（其中 ${fileDeletedCount} 个文件）` : ''}`
     };
 
     res.json(response);
@@ -349,6 +442,126 @@ router.post('/cleanup', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: '清理内容失败'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /config/cleanup-files:
+ *   post:
+ *     tags: [Config]
+ *     summary: 清理文件内容
+ *     description: |
+ *       专门清理文件类型的剪切板内容，支持两种策略：
+ *
+ *       **1. 最旧优先 (oldest_first)**
+ *       - 按创建时间排序，删除最旧的文件
+ *
+ *       **2. 最大优先 (largest_first)**
+ *       - 按文件大小排序，删除最大的文件
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxFileCount:
+ *                 type: number
+ *                 description: 保留的最大文件数量
+ *                 minimum: 0
+ *               strategy:
+ *                 type: string
+ *                 enum: ['oldest_first', 'largest_first']
+ *                 description: 清理策略
+ *                 default: 'oldest_first'
+ *             required:
+ *               - maxFileCount
+ *           examples:
+ *             oldestFirst:
+ *               summary: 最旧优先清理
+ *               value:
+ *                 maxFileCount: 50
+ *                 strategy: "oldest_first"
+ *             largestFirst:
+ *               summary: 最大优先清理
+ *               value:
+ *                 maxFileCount: 30
+ *                 strategy: "largest_first"
+ *     responses:
+ *       200:
+ *         description: 清理成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/ApiResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         deletedCount:
+ *                           type: number
+ *                           description: 删除的文件数
+ *                         remainingCount:
+ *                           type: number
+ *                           description: 剩余的文件数
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/cleanup-files', async (req: Request, res: Response) => {
+  try {
+    const {
+      maxFileCount,
+      strategy = 'oldest_first'
+    }: {
+      maxFileCount?: number;
+      strategy?: 'oldest_first' | 'largest_first';
+    } = req.body;
+
+    if (!maxFileCount || typeof maxFileCount !== 'number' || maxFileCount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供有效的最大文件数量（必须为非负整数）'
+      });
+    }
+
+    const originalFileCount = await ClipboardItemDAO.getFileCount();
+    let deletedCount = 0;
+
+    if (originalFileCount > maxFileCount) {
+      deletedCount = await ClipboardItemDAO.cleanupFilesByCount(maxFileCount, strategy);
+    }
+
+    const remainingCount = await ClipboardItemDAO.getFileCount();
+
+    const response: ApiResponse<{ deletedCount: number; remainingCount: number }> = {
+      success: true,
+      data: {
+        deletedCount,
+        remainingCount
+      },
+      message: `文件清理完成，删除了 ${deletedCount} 个文件，剩余 ${remainingCount} 个文件`
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('清理文件失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '清理文件失败'
     });
   }
 });
@@ -437,6 +650,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       totalItems: number;
       textItems: number;
       imageItems: number;
+      fileItems: number;
       totalSize: string;
     }> = {
       success: true,
@@ -444,6 +658,7 @@ router.get('/stats', async (req: Request, res: Response) => {
         totalItems: stats.totalItems,
         textItems: stats.textItems,
         imageItems: stats.imageItems,
+        fileItems: stats.fileItems,
         totalSize: formatBytes(stats.totalSize)
       }
     };

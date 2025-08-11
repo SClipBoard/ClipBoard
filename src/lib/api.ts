@@ -163,14 +163,27 @@ class ApiClient {
     totalItems: number;
     textItems: number;
     imageItems: number;
+    fileItems: number;
     totalSize: string;
   }> {
     const response = await this.request<{
       totalItems: number;
       textItems: number;
       imageItems: number;
+      fileItems: number;
       totalSize: string;
     }>('/config/stats');
+    return response.data;
+  }
+
+  async cleanupFiles(params: {
+    maxFileCount: number;
+    strategy?: 'oldest_first' | 'largest_first';
+  }): Promise<{ deletedCount: number; remainingCount: number }> {
+    const response = await this.request<{ deletedCount: number; remainingCount: number }>('/config/cleanup-files', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
     return response.data;
   }
 

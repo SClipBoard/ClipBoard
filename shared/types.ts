@@ -80,12 +80,21 @@ export interface CleanupConfig {
   maxCount?: number; // 最大保留数量
   beforeDate?: string; // 清理指定日期之前的内容
   autoCleanInterval?: number; // 自动清理间隔（小时）
+  fileCleanup?: FileCleanupConfig; // 文件清理配置
+}
+
+// 文件清理策略配置
+export interface FileCleanupConfig {
+  enabled: boolean; // 是否启用文件清理
+  maxFileCount: number; // 最大文件数量
+  strategy: 'oldest_first' | 'largest_first'; // 清理策略：最旧优先或最大优先
 }
 
 // 清理请求类型
 export interface CleanupRequest {
-  type?: 'count' | 'date';
+  type?: 'count' | 'date' | 'file_count';
   value?: number | string;
+  fileCleanupStrategy?: 'oldest_first' | 'largest_first';
 }
 
 // 分页查询参数

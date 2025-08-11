@@ -14,20 +14,38 @@ async function autoCleanupIfNeeded(): Promise<void> {
   try {
     const userConfig = await readUserConfig();
     const currentCount = await ClipboardItemDAO.getCount();
+    const currentFileCount = await ClipboardItemDAO.getFileCount();
 
     console.log(`自动清理检查: 当前条目数=${currentCount}, 最大条目数=${userConfig.maxItems}`);
+    console.log(`文件清理检查: 当前文件数=${currentFileCount}, 文件清理配置=${JSON.stringify(userConfig.fileCleanup)}`);
 
-    if (currentCount > userConfig.maxItems) {
+    // 先执行文件清理（如果启用）
+    if (userConfig.fileCleanup?.enabled && currentFileCount > userConfig.fileCleanup.maxFileCount) {
+      const fileDeleteCount = currentFileCount - userConfig.fileCleanup.maxFileCount;
+      console.log(`开始文件清理，需要删除 ${fileDeleteCount} 个文件`);
+
+      const fileDeletedCount = await ClipboardItemDAO.cleanupFilesByCount(
+        userConfig.fileCleanup.maxFileCount,
+        userConfig.fileCleanup.strategy
+      );
+
+      const newFileCount = await ClipboardItemDAO.getFileCount();
+      console.log(`文件清理完成，实际删除了 ${fileDeletedCount} 个文件，当前剩余 ${newFileCount} 个文件`);
+    }
+
+    // 再执行总数量清理
+    const updatedCount = await ClipboardItemDAO.getCount();
+    if (updatedCount > userConfig.maxItems) {
       // 从最旧的开始删除，直到数量小于等于最大条目数
-      const deleteCount = currentCount - userConfig.maxItems;
-      console.log(`开始自动清理，需要删除 ${deleteCount} 个最旧的项目`);
+      const deleteCount = updatedCount - userConfig.maxItems;
+      console.log(`开始总数量清理，需要删除 ${deleteCount} 个最旧的项目`);
 
       const deletedCount = await ClipboardItemDAO.cleanupByCount(userConfig.maxItems);
 
       const newCount = await ClipboardItemDAO.getCount();
-      console.log(`自动清理完成，实际删除了 ${deletedCount} 个项目，当前剩余 ${newCount} 个项目`);
+      console.log(`总数量清理完成，实际删除了 ${deletedCount} 个项目，当前剩余 ${newCount} 个项目`);
     } else {
-      console.log('无需清理，当前条目数未超过限制');
+      console.log('无需总数量清理，当前条目数未超过限制');
     }
   } catch (error) {
     console.error('自动清理失败:', error);
@@ -136,13 +154,63 @@ router.get('/', async (req: Request, res: Response) => {
  *   post:
  *     tags: [Clipboard]
  *     summary: 上传剪切板内容
- *     description: 创建新的剪切板内容项
+ *     description: |
+ *       创建新的剪切板内容项，支持三种类型：
+ *
+ *       **1. 文本类型 (text)**
+ *       - type: "text"
+ *       - content: 纯文本内容
+ *       - deviceId: 设备ID
+ *
+ *       **2. 图片类型 (image)**
+ *       - type: "image"
+ *       - content: Base64编码的图片数据（包含data:image/格式前缀）
+ *       - deviceId: 设备ID
+ *       - fileName: 图片文件名（可选）
+ *       - fileSize: 文件大小（可选）
+ *       - mimeType: MIME类型，如 "image/png"（可选）
+ *
+ *       **3. 文件类型 (file)**
+ *       - type: "file"
+ *       - content: Base64编码的文件数据
+ *       - deviceId: 设备ID
+ *       - fileName: 文件名（必需）
+ *       - fileSize: 文件大小（可选）
+ *       - mimeType: MIME类型，如 "text/plain", "application/pdf"（可选）
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/UploadRequest'
+ *           examples:
+ *             textExample:
+ *               summary: 文本内容
+ *               description: 上传纯文本内容
+ *               value:
+ *                 type: "text"
+ *                 content: "这是一段文本内容"
+ *                 deviceId: "device-001"
+ *             imageExample:
+ *               summary: 图片内容
+ *               description: 上传图片内容（Base64编码）
+ *               value:
+ *                 type: "image"
+ *                 content: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+ *                 deviceId: "device-001"
+ *                 fileName: "screenshot.png"
+ *                 fileSize: 1024
+ *                 mimeType: "image/png"
+ *             fileExample:
+ *               summary: 文件内容
+ *               description: 上传文件内容（Base64编码）
+ *               value:
+ *                 type: "file"
+ *                 content: "SGVsbG8gV29ybGQh"
+ *                 deviceId: "device-001"
+ *                 fileName: "document.txt"
+ *                 fileSize: 12
+ *                 mimeType: "text/plain"
  *     responses:
  *       201:
  *         description: 上传成功

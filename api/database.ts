@@ -421,6 +421,87 @@ export class ClipboardItemDAO {
     const result = await execute(sql, [beforeDate.toISOString()]);
     return result.affectedRows;
   }
+
+  /**
+   * 获取文件类型的数量
+   */
+  static async getFileCount(): Promise<number> {
+    const sql = 'SELECT COUNT(*) as count FROM clipboard_items WHERE type = "file"';
+    const result = await query<{ count: number }>(sql);
+    return result[0]?.count || 0;
+  }
+
+  /**
+   * 按文件数量清理（保留最新的keepCount个文件）
+   */
+  static async cleanupFilesByCount(keepCount: number, strategy: 'oldest_first' | 'largest_first' = 'oldest_first'): Promise<number> {
+    try {
+      // 确保 keepCount 是一个有效的正整数
+      const limit = Math.max(0, Math.floor(keepCount));
+
+      console.log(`cleanupFilesByCount: keepCount=${keepCount}, limit=${limit}, strategy=${strategy}`);
+
+      // 如果 limit 为 0，删除所有文件
+      if (limit === 0) {
+        const deleteSql = 'DELETE FROM clipboard_items WHERE type = \'file\'';
+        const result = await execute(deleteSql);
+        console.log(`删除所有文件，删除数量: ${result.affectedRows}`);
+        return result.affectedRows;
+      }
+
+      // 根据策略构建不同的SQL查询，使用字符串拼接避免参数问题
+      let selectSql: string;
+      if (strategy === 'largest_first') {
+        // 按文件大小倒序，文件大小为空的按时间排序
+        selectSql = `
+          SELECT id FROM clipboard_items
+          WHERE type = 'file'
+          ORDER BY COALESCE(file_size, 0) DESC, created_at DESC
+          LIMIT ${limit}
+        `;
+      } else {
+        // 默认按时间倒序（最新的在前）
+        selectSql = `
+          SELECT id FROM clipboard_items
+          WHERE type = 'file'
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `;
+      }
+
+      console.log(`执行查询: ${selectSql.trim()}`);
+      const keepItems = await query<{ id: string }>(selectSql);
+      console.log(`查询到要保留的文件数量: ${keepItems.length}`);
+
+      if (keepItems.length === 0) {
+        // 如果没有要保留的项目，删除所有文件
+        const deleteSql = 'DELETE FROM clipboard_items WHERE type = \'file\'';
+        const result = await execute(deleteSql);
+        console.log(`没有要保留的文件，删除所有文件，删除数量: ${result.affectedRows}`);
+        return result.affectedRows;
+      }
+
+      // 构建要保留的ID列表，使用字符串拼接避免参数问题
+      const keepIds = keepItems.map(item => item.id);
+      const quotedIds = keepIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+
+      // 删除不在保留列表中的文件
+      const deleteSql = `DELETE FROM clipboard_items WHERE type = 'file' AND id NOT IN (${quotedIds})`;
+
+      console.log(`执行删除: ${deleteSql}`);
+      const result = await execute(deleteSql);
+      console.log(`删除完成，删除数量: ${result.affectedRows}`);
+      return result.affectedRows;
+    } catch (error) {
+      console.error('cleanupFilesByCount 执行失败:', error);
+      console.error('错误详情:', {
+        keepCount,
+        strategy,
+        limit: Math.max(0, Math.floor(keepCount))
+      });
+      throw error;
+    }
+  }
   
   /**
    * 获取统计信息
