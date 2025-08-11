@@ -1,4 +1,4 @@
-name: Build Package
+name: Build Clipboard Sync Package
 
 # 添加权限配置
 permissions:
@@ -39,23 +39,22 @@ jobs:
       - name: Setup Node.js for build
         uses: actions/setup-node@v4
         with:
-          node-version: '22.16.0'
+          node-version: '22.17.0'
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm install
-          cd client && npm install
-          cd ../server && npm install
+        run: npm install
+
       - name: Build package
         run: npm run package:linux
         env:
           CI: true
           NODE_ENV: production
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gsm3-management-panel-linux-build
+          name: clipboard-sync-linux-build
           path: dist/package/
           retention-days: 30
 
@@ -67,26 +66,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.16.0'
+          node-version: '22.17.0'
           cache: 'npm'
+
       - name: Install dependencies
-        run: |
-          npm install
-          cd client
-          npm install
-          cd ..
-          cd server
-          npm install
-          cd ..
+        run: npm install
+
       - name: Build package
         run: npm run package:windows
         env:
           CI: true
           NODE_ENV: production
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gsm3-management-panel-windows-build
+          name: clipboard-sync-windows-build
           path: dist/package/
           retention-days: 30
 
@@ -121,8 +116,8 @@ jobs:
           context: .
           push: true
           tags: |
-            xiaozhu674/sclipboard:1.0
-            xiaozhu674/sclipboard:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/clipboard-sync:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/clipboard-sync:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -135,27 +130,31 @@ jobs:
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: gsm3-management-panel-linux-build
+          name: clipboard-sync-linux-build
           path: linux-build/
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: gsm3-management-panel-windows-build
+          name: clipboard-sync-windows-build
           path: windows-build/
+
       - name: Create Linux tar.gz
         run: |
           cd linux-build
-          tar -czf ../gsm3-management-panel-linux.tar.gz *
+          tar -czf ../clipboard-sync-linux-${{ github.ref_name }}.tar.gz *
+
       - name: Create Windows zip
         run: |
           cd windows-build
-          zip -r ../gsm3-management-panel-windows.zip *
+          zip -r ../clipboard-sync-windows-${{ github.ref_name }}.zip *
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            gsm3-management-panel-linux.tar.gz
-            gsm3-management-panel-windows.zip
+            clipboard-sync-linux-${{ github.ref_name }}.tar.gz
+            clipboard-sync-windows-${{ github.ref_name }}.zip
           generate_release_notes: true
           draft: false
           prerelease: false
