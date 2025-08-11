@@ -2,45 +2,66 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { existsSync, writeFileSync } from 'node:fs';
 
-// 加载环境变量（如果 .env 不存在则自动创建默认配置）
-const envPath = path.resolve(process.cwd(), '.env');
-if (!existsSync(envPath)) {
-  const defaultEnv = `NODE_ENV=production
+// 检测是否在容器化环境中运行
+const isContainerized = () => {
+  return (
+    // Docker 环境检测
+    process.env.DOCKER_ENV === 'true' ||
+    existsSync('/.dockerenv') ||
+    // Kubernetes 环境检测
+    process.env.KUBERNETES_SERVICE_HOST ||
+    // 其他容器环境检测
+    process.env.CONTAINER === 'true' ||
+    // 如果关键的数据库环境变量都存在，很可能是容器化部署
+    (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD && process.env.DB_NAME)
+  );
+};
+
+const containerized = isContainerized();
+
+if (containerized) {
+  console.log('检测到容器化环境，使用环境变量配置');
+} else {
+  // 非容器化环境，尝试加载 .env 文件
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) {
+    const defaultEnv = `NODE_ENV=development
 PORT=3001
 WS_PORT=3002
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:5173
 
-DB_HOST=
+DB_HOST=localhost
 DB_PORT=3306
-DB_USER=
+DB_USER=root
 DB_PASSWORD=
-DB_NAME=
+DB_NAME=clipboard_sync
 
 LOG_LEVEL=info
 LOG_FILE=logs/app.log
 UPLOAD_DIR=uploads
 `;
-  try {
-    writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
-    console.log('\n=== 配置文件已创建 ===');
-    console.log('已在以下位置创建默认配置文件：', envPath);
-    console.log('\n请根据您的实际环境修改以下配置项：');
-    console.log('- DB_HOST: 数据库主机地址');
-    console.log('- DB_PORT: 数据库端口');
-    console.log('- DB_USER: 数据库用户名');
-    console.log('- DB_PASSWORD: 数据库密码');
-    console.log('- DB_NAME: 数据库名称');
-    console.log('- JWT_SECRET: 请设置一个安全的密钥');
-    console.log('\n配置完成后，请重新启动应用程序。');
-    console.log('======================\n');
-    process.exit(0);
-  } catch (e) {
-    console.error('无法创建 .env 文件，请手动创建:', envPath, e);
-    process.exit(1);
+    try {
+      writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
+      console.log('\n=== 配置文件已创建 ===');
+      console.log('已在以下位置创建默认配置文件：', envPath);
+      console.log('\n请根据您的实际环境修改以下配置项：');
+      console.log('- DB_HOST: 数据库主机地址');
+      console.log('- DB_PORT: 数据库端口');
+      console.log('- DB_USER: 数据库用户名');
+      console.log('- DB_PASSWORD: 数据库密码');
+      console.log('- DB_NAME: 数据库名称');
+      console.log('\n配置完成后，请重新启动应用程序。');
+      console.log('======================\n');
+      process.exit(0);
+    } catch (e) {
+      console.error('无法创建 .env 文件，请手动创建:', envPath, e);
+      process.exit(1);
+    }
   }
-}
 
-dotenv.config();
+  dotenv.config();
+  console.log('已加载 .env 配置文件');
+}
 
 export interface DatabaseConfig {
   host: string;
