@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, RefreshCw, Settings } from 'lucide-react';
+import { Plus, RefreshCw, Settings, Keyboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ClipboardItem from '../components/ClipboardItem';
 import SearchFilter from '../components/SearchFilter';
 import ConnectionStatus from '../components/ConnectionStatus';
+import GlobalPasteIndicator from '../components/GlobalPasteIndicator';
 import { apiClient } from '../lib/api';
 import { wsManager, deviceId } from '../lib/websocket';
+import { useGlobalPaste } from '../hooks/useGlobalPaste';
 import type { ClipboardItem as ClipboardItemType, PaginationParams } from '../../shared/types';
 
 export default function Home() {
@@ -16,10 +18,22 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  
+
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'text' | 'image' | 'file'>('all');
+
+  // 全局粘贴功能
+  const { isPasting, lastPasteResult, clearLastResult } = useGlobalPaste({
+    enabled: true,
+    onPasteComplete: (result) => {
+      if (result.success && result.item) {
+        // 不在这里直接添加到列表，完全依赖 WebSocket 的 onNewItem 事件来处理
+        // 这样可以确保数据的一致性，避免重复添加
+        console.log('全局粘贴成功，等待 WebSocket 同步更新列表');
+      }
+    }
+  });
   
 
   
@@ -132,9 +146,17 @@ export default function Home() {
         console.log('WebSocket已断开');
       },
       onNewItem: (newItem) => {
-        // 只有在没有搜索查询时才添加新项目，避免干扰搜索结果
+        // 只有在没有搜索查询和类型筛选时才添加新项目
         if (!searchQuery && typeFilter === 'all') {
-          setItems(prev => [newItem, ...prev]);
+          setItems(prev => {
+            // 检查是否已存在，避免重复添加
+            if (prev.some(item => item.id === newItem.id)) {
+              console.log('项目已存在，跳过添加:', newItem.id);
+              return prev;
+            }
+            console.log('添加新项目到列表:', newItem.id);
+            return [newItem, ...prev];
+          });
           setTotalItems(prev => prev + 1);
         }
       },
@@ -220,9 +242,15 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             共享剪切板
           </h1>
-          <p className="text-gray-600">
-            跨设备同步您的剪切板内容，支持文字、图片和文件
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <p className="text-gray-600">
+              跨设备同步您的剪切板内容，支持文字、图片和文件
+            </p>
+            <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+              <Keyboard className="w-4 h-4" />
+              <span>按 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">Ctrl+V</kbd> 快速粘贴上传</span>
+            </div>
+          </div>
         </div>
 
         {/* 连接状态 */}
@@ -319,6 +347,13 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* 全局粘贴指示器 */}
+      <GlobalPasteIndicator
+        isPasting={isPasting}
+        lastPasteResult={lastPasteResult}
+        onClearResult={clearLastResult}
+      />
     </div>
   );
 }
