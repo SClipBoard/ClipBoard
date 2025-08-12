@@ -4,6 +4,7 @@ import type { ClipboardItem as ClipboardItemType } from '../../shared/types';
 import { getApiBaseUrl } from '../lib/config';
 import SecureImage from './SecureImage';
 import { apiClient } from '../lib/api';
+import { copyWithFallback } from '../lib/clipboard';
 
 interface ClipboardItemProps {
   item: ClipboardItemType;
@@ -33,10 +34,16 @@ export default function ClipboardItem({ item, onDelete, onCopy, onUpdate }: Clip
         copyContent = item.fileName;
       }
 
-      await navigator.clipboard.writeText(copyContent);
-      onCopy(copyContent);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      const success = await copyWithFallback(copyContent, {
+        showAlert: true,
+        maxPreviewLength: 100
+      });
+
+      if (success) {
+        onCopy(copyContent);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     } catch (error) {
       console.error('复制失败:', error);
     }
