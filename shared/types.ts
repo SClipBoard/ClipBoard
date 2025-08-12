@@ -20,6 +20,8 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   total?: number;
+  filteredTotal?: number; // 筛选后的总数
+  allTotal?: number; // 全部内容的总数
 }
 
 // 上传请求类型

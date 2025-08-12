@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, RefreshCw, Settings, Keyboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ClipboardItem from '../components/ClipboardItem';
@@ -22,6 +22,7 @@ export default function Home() {
   const [allTotalItems, setAllTotalItems] = useState(0); // 全部内容总数
   const [hasMore, setHasMore] = useState(true);
   const [deletingItems, setDeletingItems] = useState<Set<string>>(new Set()); // 跟踪正在删除的项目
+  const deletingItemsRef = useRef<Set<string>>(new Set()); // 使用ref确保WebSocket事件能获取到最新状态
 
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,6 +93,11 @@ export default function Home() {
         // 更新全部内容总数，如果API返回了allTotal字段
         if (response.allTotal !== undefined) {
           setAllTotalItems(response.allTotal);
+          console.log('初始化：设置统计数据 - totalItems:', response.total, 'allTotalItems:', response.allTotal);
+        } else {
+          // 如果API没有返回allTotal，使用total作为fallback
+          setAllTotalItems(response.total || 0);
+          console.log('初始化：API未返回allTotal，使用total作为fallback:', response.total);
         }
         setHasMore(response.data.length === itemsPerPage);
       } else {
@@ -226,29 +232,26 @@ export default function Home() {
         }
       },
       onDeleteItem: (itemId) => {
-        console.log('WebSocket删除事件:', itemId);
-
-        // 如果这个项目正在被用户手动删除，跳过WebSocket事件处理
-        if (deletingItems.has(itemId)) {
-          console.log('WebSocket: 项目正在被手动删除，跳过WebSocket事件处理');
+        // 使用ref检查，确保能获取到最新的删除状态
+        const isLocallyDeleting = deletingItemsRef.current.has(itemId);
+        if (isLocallyDeleting) {
+          // 本标签页刚执行过乐观删除，跳过WS重复处理
           return;
         }
 
-        // 这是来自其他设备的删除事件，需要更新UI
+        // 来自其他标签页/设备的删除，基于最新列表做幂等处理
         setItems(prev => {
-          const itemExists = prev.some(item => item.id === itemId);
-          if (itemExists) {
-            console.log('WebSocket: 从当前列表中删除项目:', itemId);
-            setTotalItems(prevTotal => prevTotal - 1);
-            setAllTotalItems(prevTotal => prevTotal - 1);
-            return prev.filter(item => item.id !== itemId);
-          } else {
-            // 项目不在当前列表中，但仍需要更新总数
-            console.log('WebSocket: 删除的项目不在当前筛选结果中，只更新总数');
-            setAllTotalItems(prevTotal => Math.max(0, prevTotal - 1));
-            return prev;
+          const next = prev.filter(item => item.id !== itemId);
+          const removedCount = prev.length - next.length;
+          if (removedCount > 0) {
+            // 只有当当前列表确实移除了项目时，才更新筛选后的计数
+            setTotalItems(p => Math.max(0, p - removedCount));
           }
+          return next;
         });
+
+        // 无论当前筛选列表是否包含该项目，全部总数都要递减一次
+        setAllTotalItems(prev => Math.max(0, prev - 1));
       },
       onSync: (syncItems) => {
         // 只有在没有搜索查询和类型筛选时才同步数据，避免覆盖搜索结果
@@ -290,16 +293,21 @@ export default function Home() {
       return;
     }
 
+    // 先找到要删除的项目（在try块外定义，以便在catch块中使用）
+    const itemToDelete = items.find(item => item.id === id);
+
     try {
-      // 标记为正在删除
-      setDeletingItems(prev => new Set([...prev, id]));
+      // 立即标记为正在删除，防止重复调用
+      const newDeletingItems = new Set([...deletingItems, id]);
+      setDeletingItems(newDeletingItems);
+      deletingItemsRef.current = newDeletingItems;
+      console.log('标记项目为正在删除:', id, '当前deletingItems:', Array.from(newDeletingItems));
 
       // 先乐观更新UI，立即从列表中移除项目
-      const itemToDelete = items.find(item => item.id === id);
       if (itemToDelete) {
         setItems(prev => prev.filter(item => item.id !== id));
-        setTotalItems(prev => prev - 1);
-        setAllTotalItems(prev => prev - 1);
+        setTotalItems(prev => Math.max(0, prev - 1));
+        setAllTotalItems(prev => Math.max(0, prev - 1));
         console.log('乐观更新：从列表中移除项目', id);
       }
 
@@ -328,12 +336,16 @@ export default function Home() {
 
       alert('删除失败，请重试');
     } finally {
-      // 无论成功还是失败，都要移除删除标记
-      setDeletingItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
+      // 延迟清理删除标记，给WebSocket事件足够时间来检查状态
+      setTimeout(() => {
+        setDeletingItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          deletingItemsRef.current = newSet;
+          console.log('清理删除标记:', id, '剩余deletingItems:', Array.from(newSet));
+          return newSet;
+        });
+      }, 1000); // 延迟1秒清理
     }
   }, [items, deletingItems]);
 
