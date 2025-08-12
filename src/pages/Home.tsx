@@ -18,8 +18,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
+  const [totalItems, setTotalItems] = useState(0); // 筛选后的结果数
+  const [allTotalItems, setAllTotalItems] = useState(0); // 全部内容总数
   const [hasMore, setHasMore] = useState(true);
+  const [deletingItems, setDeletingItems] = useState<Set<string>>(new Set()); // 跟踪正在删除的项目
 
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +89,10 @@ export default function Home() {
         }
 
         setTotalItems(response.total || 0);
+        // 更新全部内容总数，如果API返回了allTotal字段
+        if (response.allTotal !== undefined) {
+          setAllTotalItems(response.allTotal);
+        }
         setHasMore(response.data.length === itemsPerPage);
       } else {
         // 处理无效响应或错误情况
@@ -160,36 +166,96 @@ export default function Home() {
         console.log('WebSocket已断开');
       },
       onNewItem: (newItem) => {
-        // 只有在没有搜索查询和类型筛选时才处理新项目
+        // 总是更新全部内容总数
+        setAllTotalItems(prev => prev + 1);
+
+        // 检查新项目是否符合当前筛选条件
+        const matchesFilter = () => {
+          // 检查类型筛选
+          if (typeFilter !== 'all' && newItem.type !== typeFilter) {
+            return false;
+          }
+
+          // 检查搜索条件
+          if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const contentMatch = newItem.type === 'text' && newItem.content.toLowerCase().includes(query);
+            const fileNameMatch = newItem.fileName && newItem.fileName.toLowerCase().includes(query);
+            if (!contentMatch && !fileNameMatch) {
+              return false;
+            }
+          }
+
+          return true;
+        };
+
+        // 如果没有筛选条件或新项目符合筛选条件，则添加到列表
         if (!searchQuery && typeFilter === 'all') {
+          // 无筛选条件，直接添加
           setItems(prev => {
-            // 检查是否已存在
             const existingIndex = prev.findIndex(item => item.id === newItem.id);
             if (existingIndex !== -1) {
-              // 如果项目已存在，则更新它（用于处理编辑操作）
               console.log('更新现有项目:', newItem.id);
               const updatedItems = [...prev];
               updatedItems[existingIndex] = newItem;
               return updatedItems;
             } else {
-              // 如果是新项目，则添加到列表顶部并增加总数
               console.log('添加新项目到列表:', newItem.id);
               setTotalItems(prev => prev + 1);
               return [newItem, ...prev];
             }
           });
+        } else if (matchesFilter()) {
+          // 有筛选条件但新项目符合条件，添加到列表
+          setItems(prev => {
+            const existingIndex = prev.findIndex(item => item.id === newItem.id);
+            if (existingIndex !== -1) {
+              console.log('更新现有项目:', newItem.id);
+              const updatedItems = [...prev];
+              updatedItems[existingIndex] = newItem;
+              return updatedItems;
+            } else {
+              console.log('添加符合筛选条件的新项目:', newItem.id);
+              setTotalItems(prev => prev + 1);
+              return [newItem, ...prev];
+            }
+          });
+        } else {
+          // 新项目不符合当前筛选条件，不添加到列表但提示用户
+          console.log('新项目不符合当前筛选条件，已添加到总库但不显示在当前列表中');
         }
       },
       onDeleteItem: (itemId) => {
-        // 删除操作总是执行，因为用户可能在搜索结果中删除项目
-        setItems(prev => prev.filter(item => item.id !== itemId));
-        setTotalItems(prev => prev - 1);
+        console.log('WebSocket删除事件:', itemId);
+
+        // 如果这个项目正在被用户手动删除，跳过WebSocket事件处理
+        if (deletingItems.has(itemId)) {
+          console.log('WebSocket: 项目正在被手动删除，跳过WebSocket事件处理');
+          return;
+        }
+
+        // 这是来自其他设备的删除事件，需要更新UI
+        setItems(prev => {
+          const itemExists = prev.some(item => item.id === itemId);
+          if (itemExists) {
+            console.log('WebSocket: 从当前列表中删除项目:', itemId);
+            setTotalItems(prevTotal => prevTotal - 1);
+            setAllTotalItems(prevTotal => prevTotal - 1);
+            return prev.filter(item => item.id !== itemId);
+          } else {
+            // 项目不在当前列表中，但仍需要更新总数
+            console.log('WebSocket: 删除的项目不在当前筛选结果中，只更新总数');
+            setAllTotalItems(prevTotal => Math.max(0, prevTotal - 1));
+            return prev;
+          }
+        });
       },
       onSync: (syncItems) => {
         // 只有在没有搜索查询和类型筛选时才同步数据，避免覆盖搜索结果
         if (!searchQuery && typeFilter === 'all') {
           setItems(syncItems);
           setTotalItems(syncItems.length);
+          setAllTotalItems(syncItems.length); // 在全量同步时，两个总数应该相等
         }
       },
       onError: (error) => {
@@ -218,14 +284,58 @@ export default function Home() {
 
   // 处理删除
   const handleDelete = useCallback(async (id: string) => {
+    // 防止重复删除
+    if (deletingItems.has(id)) {
+      console.log('项目正在删除中，跳过重复操作:', id);
+      return;
+    }
+
     try {
+      // 标记为正在删除
+      setDeletingItems(prev => new Set([...prev, id]));
+
+      // 先乐观更新UI，立即从列表中移除项目
+      const itemToDelete = items.find(item => item.id === id);
+      if (itemToDelete) {
+        setItems(prev => prev.filter(item => item.id !== id));
+        setTotalItems(prev => prev - 1);
+        setAllTotalItems(prev => prev - 1);
+        console.log('乐观更新：从列表中移除项目', id);
+      }
+
+      // 然后发送删除请求
       await apiClient.deleteClipboardItem(id);
-      setItems(prev => prev.filter(item => item.id !== id));
-      setTotalItems(prev => prev - 1);
+      console.log('删除请求成功:', id);
+
     } catch (error) {
       console.error('删除失败:', error);
+
+      // 如果删除失败，恢复项目到列表中
+      if (itemToDelete) {
+        setItems(prev => {
+          // 检查项目是否已经在列表中（避免重复添加）
+          const exists = prev.some(item => item.id === id);
+          if (!exists) {
+            // 将项目重新插入到原来的位置（这里简单地插入到开头）
+            setTotalItems(prevTotal => prevTotal + 1);
+            setAllTotalItems(prevTotal => prevTotal + 1);
+            return [itemToDelete, ...prev];
+          }
+          return prev;
+        });
+        console.log('删除失败，已恢复项目到列表');
+      }
+
+      alert('删除失败，请重试');
+    } finally {
+      // 无论成功还是失败，都要移除删除标记
+      setDeletingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
     }
-  }, []);
+  }, [items, deletingItems]);
 
 
 
@@ -322,7 +432,13 @@ export default function Home() {
           </div>
 
           <div className="text-sm text-gray-500">
-            共 {totalItems} 项内容
+            {searchQuery || typeFilter !== 'all' ? (
+              <span>
+                找到 {totalItems} 项内容 / 共 {allTotalItems} 项
+              </span>
+            ) : (
+              <span>共 {allTotalItems} 项内容</span>
+            )}
           </div>
         </div>
 

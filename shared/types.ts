@@ -123,6 +123,8 @@ export interface PaginationParams {
 // 分页响应类型
 export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   total: number;
+  filteredTotal?: number; // 筛选后的总数
+  allTotal?: number; // 全部内容的总数
   page: number;
   limit: number;
   totalPages: number;

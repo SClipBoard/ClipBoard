@@ -137,7 +137,9 @@ router.get('/', async (req: Request, res: Response) => {
     const response: ApiResponse<ClipboardItem[]> = {
       success: true,
       data: result.items,
-      total: result.total
+      total: result.total,
+      filteredTotal: result.filteredTotal,
+      allTotal: result.allTotal
     };
 
     res.json(response);

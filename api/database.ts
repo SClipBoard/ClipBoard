@@ -235,7 +235,7 @@ export class ClipboardItemDAO {
     type?: 'text' | 'image' | 'file';
     search?: string;
     deviceId?: string;
-  }): Promise<{ items: ClipboardItem[]; total: number }> {
+  }): Promise<{ items: ClipboardItem[]; total: number; filteredTotal: number; allTotal: number }> {
     const { page = 1, limit = 20, type, search, deviceId } = params;
     const offset = (page - 1) * limit;
     
@@ -265,10 +265,18 @@ export class ClipboardItemDAO {
       queryParams.push(deviceId);
     }
     
-    // 获取总数
+    // 获取筛选后的总数
     const countSql = `SELECT COUNT(*) as total FROM clipboard_items ${whereClause}`;
     const countResult = await query<{ total: number }>(countSql, queryParams);
-    const total = countResult[0]?.total || 0;
+    const filteredTotal = countResult[0]?.total || 0;
+
+    // 获取全部内容的总数（不受筛选条件影响）
+    const allCountSql = `SELECT COUNT(*) as total FROM clipboard_items`;
+    const allCountResult = await query<{ total: number }>(allCountSql);
+    const allTotal = allCountResult[0]?.total || 0;
+
+    // 为了保持向后兼容，total字段保持为筛选后的总数
+    const total = filteredTotal;
     
     // 获取数据（使用字符串拼接处理LIMIT和OFFSET，避免MySQL参数化查询问题）
     const dataSql = `
@@ -283,7 +291,7 @@ export class ClipboardItemDAO {
 
     const items = await query<ClipboardItem>(dataSql, queryParams);
 
-    return { items, total };
+    return { items, total, filteredTotal, allTotal };
   }
   
   /**
