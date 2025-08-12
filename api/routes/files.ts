@@ -9,7 +9,6 @@ const router: express.Router = express.Router();
 
 // 添加中间件来记录所有到达文件路由的请求
 router.use((req, res, next) => {
-  console.log(`文件路由请求: ${req.method} ${req.path}`, req.query);
   next();
 });
 
