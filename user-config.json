@@ -7,8 +7,8 @@
     "strategy": "oldest_first"
   },
   "websocketSecurity": {
-    "enabled": true,
-    "key": "X-Api-Key",
-    "value": "Qw133133"
+    "enabled": false,
+    "key": "",
+    "value": ""
   }
 }
