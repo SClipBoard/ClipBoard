@@ -99,7 +99,7 @@ async function createStartupScripts(packageDir, platform) {
     // Windows启动脚本
     const startBat = `@echo off
 chcp 65001 >nul
-echo 正在启动共享剪切板服务...
+echo 正在启动剪切板同步服务...
 echo.
 echo 服务将在 http://localhost:3001 启动
 echo 按 Ctrl+C 停止服务
@@ -111,7 +111,7 @@ pause`
   } else if (platform === 'linux') {
     // Linux启动脚本
     const startSh = `#!/bin/bash
-echo "正在启动共享剪切板服务..."
+echo "正在启动剪切板同步服务..."
 echo ""
 echo "服务将在 http://localhost:3001 启动"
 echo "按 Ctrl+C 停止服务"
@@ -130,7 +130,7 @@ echo ""
     // 通用启动脚本（需要系统已安装Node.js）
     const startBat = `@echo off
 chcp 65001 >nul
-echo 正在启动共享剪切板服务...
+echo 正在启动剪切板同步服务...
 echo.
 echo 服务将在 http://localhost:3001 启动
 echo 按 Ctrl+C 停止服务
@@ -139,7 +139,7 @@ node api\\server.js
 pause`
     
     const startSh = `#!/bin/bash
-echo "正在启动共享剪切板服务..."
+echo "正在启动剪切板同步服务..."
 echo ""
 echo "服务将在 http://localhost:3001 启动"
 echo "按 Ctrl+C 停止服务"

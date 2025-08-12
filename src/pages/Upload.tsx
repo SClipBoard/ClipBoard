@@ -290,7 +290,7 @@ export default function Upload() {
             上传内容
           </h1>
           <p className="text-gray-600">
-            上传文字或图片到共享剪切板
+            上传文字或图片到剪切板同步
           </p>
         </div>
 
@@ -501,7 +501,7 @@ export default function Upload() {
             )}
             {uploadResult.success && uploadResult.item && (
               <p className="mt-1 text-sm text-green-600">
-                内容已添加到共享剪切板，ID: {uploadResult.item.id.slice(-8)}
+                内容已添加到剪切板同步，ID: {uploadResult.item.id.slice(-8)}
               </p>
             )}
           </div>

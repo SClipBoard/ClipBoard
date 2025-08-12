@@ -67,7 +67,7 @@ export default function GlobalDropIndicator({
               正在上传文件...
             </h3>
             <p className="text-gray-600">
-              请稍候，文件正在上传到共享剪切板
+              请稍候，文件正在上传到剪切板同步
             </p>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function GlobalDropIndicator({
               </h4>
               {lastDropResult.success && lastDropResult.item && (
                 <p className="text-sm text-green-600 mt-1">
-                  {lastDropResult.item.fileName || '文件'} 已添加到共享剪切板
+                  {lastDropResult.item.fileName || '文件'} 已添加到剪切板同步
                 </p>
               )}
               {lastDropResult.error && (

@@ -262,7 +262,7 @@ export default function Home() {
         {/* 页面标题 */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            共享剪切板
+            剪切板同步
           </h1>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <p className="text-gray-600">
