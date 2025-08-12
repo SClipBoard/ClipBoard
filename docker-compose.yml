@@ -4,6 +4,7 @@ services:
   # 应用服务
   app:
     build: .
+    image: xiaozhu674/clipboard-sync:latest
     ports:
       - "3001:3001"
       - "3002:3002"
