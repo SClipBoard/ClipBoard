@@ -13,6 +13,8 @@ export default defineConfig({
     emptyOutDir: false, // 不清空dist目录，因为后端文件也在这里
   },
   server: {
+    host: '0.0.0.0', // 允许局域网访问
+    port: 5173, // 指定端口
     proxy: {
       '/api': {
         target: process.env.VITE_API_PORT ?

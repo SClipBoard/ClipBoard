@@ -273,31 +273,70 @@ export default function Upload() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* 页面标题 */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
-            <Link
-              to="/"
-              className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>返回主页</span>
-            </Link>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            上传内容
-          </h1>
-          <p className="text-gray-600">
-            上传文字或图片到剪切板同步
-          </p>
+    <div className="max-w-2xl mx-auto px-4 py-4 md:py-8">
+      {/* 页面标题 - 仅PC端显示 */}
+      <div className="hidden md:block mb-8">
+        <div className="flex items-center space-x-4 mb-4">
+          <Link
+            to="/"
+            className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>返回主页</span>
+          </Link>
         </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          上传内容
+        </h1>
+        <p className="text-gray-600">
+          上传文字或图片到剪切板同步
+        </p>
+      </div>
 
         {/* 类型选择 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">选择内容类型</h2>
-          <div className="flex flex-wrap gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
+          {/* PC端标题 */}
+          <h2 className="hidden md:block text-lg font-medium text-gray-900 mb-4">选择内容类型</h2>
+
+          {/* 移动端布局 - 一行显示，只有图标 */}
+          <div className="md:hidden flex items-center justify-center space-x-4">
+            <button
+              onClick={() => setUploadType('text')}
+              className={`flex items-center justify-center w-16 h-16 rounded-xl border-2 transition-colors duration-200 ${
+                uploadType === 'text'
+                  ? 'border-blue-500 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="文字内容"
+            >
+              <FileText className="w-7 h-7" />
+            </button>
+            <button
+              onClick={() => setUploadType('image')}
+              className={`flex items-center justify-center w-16 h-16 rounded-xl border-2 transition-colors duration-200 ${
+                uploadType === 'image'
+                  ? 'border-blue-500 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="图片内容"
+            >
+              <Image className="w-7 h-7" />
+            </button>
+            <button
+              onClick={() => setUploadType('file')}
+              className={`flex items-center justify-center w-16 h-16 rounded-xl border-2 transition-colors duration-200 ${
+                uploadType === 'file'
+                  ? 'border-blue-500 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="文件内容"
+            >
+              <File className="w-7 h-7" />
+            </button>
+          </div>
+
+          {/* PC端布局 - 保持原样 */}
+          <div className="hidden md:flex flex-wrap gap-4">
             <button
               onClick={() => setUploadType('text')}
               className={`flex items-center space-x-3 px-4 py-3 rounded-lg border-2 transition-colors duration-200 ${
@@ -335,17 +374,17 @@ export default function Upload() {
         </div>
 
         {/* 内容输入区域 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
           {uploadType === 'text' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="hidden md:block text-sm font-medium text-gray-700 mb-2">
                 文字内容
               </label>
               <textarea
                 ref={textareaRef}
                 value={textContent}
                 onChange={(e) => setTextContent(e.target.value)}
-                className="w-full h-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                className="w-full h-32 md:h-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm md:text-base"
                 placeholder="请输入要上传的文字内容..."
               />
               <div className="flex justify-between items-center mt-2">
@@ -362,23 +401,23 @@ export default function Upload() {
             </div>
           ) : uploadType === 'image' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="hidden md:block text-sm font-medium text-gray-700 mb-2">
                 图片文件
               </label>
-              
+
               {!imagePreview ? (
                 <div
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors duration-200 cursor-pointer"
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center hover:border-gray-400 transition-colors duration-200 cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <UploadIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-lg font-medium text-gray-900 mb-2">
+                  <UploadIcon className="w-10 h-10 md:w-12 md:h-12 mx-auto mb-3 md:mb-4 text-gray-400" />
+                  <p className="text-base md:text-lg font-medium text-gray-900 mb-1 md:mb-2">
                     点击选择图片或拖拽到此处
                   </p>
-                  <p className="text-sm text-gray-500">
-                    支持 JPG、PNG、GIF 等所有图片格式，无大小限制
+                  <p className="text-xs md:text-sm text-gray-500">
+                    支持 JPG、PNG、GIF 等格式
                   </p>
                   <input
                     ref={fileInputRef}
@@ -419,21 +458,21 @@ export default function Upload() {
             </div>
           ) : uploadType === 'file' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="hidden md:block text-sm font-medium text-gray-700 mb-2">
                 文件上传
               </label>
-              
+
               {!selectedFile ? (
                 <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors duration-200 cursor-pointer"
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center hover:border-gray-400 transition-colors duration-200 cursor-pointer"
                   onClick={() => generalFileInputRef.current?.click()}
                 >
-                  <UploadIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-lg font-medium text-gray-900 mb-2">
+                  <UploadIcon className="w-10 h-10 md:w-12 md:h-12 mx-auto mb-3 md:mb-4 text-gray-400" />
+                  <p className="text-base md:text-lg font-medium text-gray-900 mb-1 md:mb-2">
                     点击选择文件
                   </p>
-                  <p className="text-sm text-gray-500">
-                    支持文档、压缩包、视频、音频等所有格式，无大小限制
+                  <p className="text-xs md:text-sm text-gray-500">
+                    支持所有格式文件
                   </p>
                   <input
                     ref={generalFileInputRef}
@@ -517,7 +556,7 @@ export default function Upload() {
               uploadType === 'file' ? !selectedFile :
               true
             )}
-            className={`flex items-center space-x-2 px-8 py-3 rounded-lg font-medium transition-colors duration-200 ${
+            className={`flex items-center space-x-2 px-6 md:px-8 py-3 md:py-3 rounded-lg font-medium transition-colors duration-200 w-full md:w-auto ${
               uploading || (
                 uploadType === 'text' ? !textContent.trim() :
                 uploadType === 'image' ? !imageFile :
@@ -525,14 +564,13 @@ export default function Upload() {
                 true
               )
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
             }`}
           >
             <UploadIcon className="w-5 h-5" />
-            <span>{uploading ? '上传中...' : '上传到剪切板'}</span>
+            <span className="text-sm md:text-base">{uploading ? '上传中...' : '上传到剪切板'}</span>
           </button>
         </div>
-      </div>
     </div>
   );
 }

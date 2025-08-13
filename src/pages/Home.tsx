@@ -369,7 +369,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">加载中...</p>
@@ -379,10 +379,24 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* 页面标题 */}
-        <div className="mb-8">
+    <div className="max-w-4xl mx-auto px-4 py-4 md:py-8">
+        {/* 移动端搜索框 - 放在最上面 */}
+        <div className="md:hidden mb-4">
+          <SearchFilter
+            onSearch={(query) => {
+              setSearchQuery(query);
+              setCurrentPage(1);
+              // 使用新的搜索参数立即加载数据
+              loadItems(1, false, query);
+            }}
+            onTypeFilter={setTypeFilter}
+            currentType={typeFilter}
+            currentSearch={searchQuery}
+          />
+        </div>
+
+        {/* 页面标题 - 仅PC端显示 */}
+        <div className="hidden md:block mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             剪切板同步
           </h1>
@@ -410,21 +424,23 @@ export default function Home() {
           onReconnect={handleReconnect}
         />
 
-        {/* 搜索和筛选 */}
-        <SearchFilter
-          onSearch={(query) => {
-            setSearchQuery(query);
-            setCurrentPage(1);
-            // 使用新的搜索参数立即加载数据
-            loadItems(1, false, query);
-          }}
-          onTypeFilter={setTypeFilter}
-          currentType={typeFilter}
-          currentSearch={searchQuery}
-        />
+        {/* PC端搜索和筛选 */}
+        <div className="hidden md:block">
+          <SearchFilter
+            onSearch={(query) => {
+              setSearchQuery(query);
+              setCurrentPage(1);
+              // 使用新的搜索参数立即加载数据
+              loadItems(1, false, query);
+            }}
+            onTypeFilter={setTypeFilter}
+            currentType={typeFilter}
+            currentSearch={searchQuery}
+          />
+        </div>
 
-        {/* 操作按钮 */}
-        <div className="flex items-center justify-between mb-6">
+        {/* 操作按钮 - PC端显示 */}
+        <div className="hidden md:flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <Link
               to="/upload"
@@ -443,6 +459,19 @@ export default function Home() {
             </Link>
           </div>
 
+          <div className="text-sm text-gray-500">
+            {searchQuery || typeFilter !== 'all' ? (
+              <span>
+                找到 {totalItems} 项内容 / 共 {allTotalItems} 项
+              </span>
+            ) : (
+              <span>共 {allTotalItems} 项内容</span>
+            )}
+          </div>
+        </div>
+
+        {/* 移动端统计信息 */}
+        <div className="md:hidden mb-6 text-center">
           <div className="text-sm text-gray-500">
             {searchQuery || typeFilter !== 'all' ? (
               <span>
@@ -497,7 +526,6 @@ export default function Home() {
             </>
           )}
         </div>
-      </div>
 
       {/* 全局粘贴指示器 */}
       <GlobalPasteIndicator

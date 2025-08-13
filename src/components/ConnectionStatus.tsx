@@ -66,7 +66,67 @@ export default function ConnectionStatus({
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-      <div className="flex items-center justify-between">
+      {/* 移动端布局 */}
+      <div className="md:hidden">
+        <div className="flex items-center justify-between">
+          {/* 连接状态图标 - 点击重连 */}
+          <button
+            onClick={isConnected ? undefined : onReconnect}
+            className={`flex items-center space-x-2 p-2 rounded-lg transition-colors duration-200 ${
+              isConnected
+                ? 'text-green-600 cursor-default'
+                : 'text-red-600 hover:bg-red-50 active:bg-red-100'
+            }`}
+            disabled={isConnected}
+            title={isConnected ? '连接正常' : '点击重连'}
+          >
+            {isConnected ? (
+              <Wifi className="w-5 h-5" />
+            ) : (
+              <WifiOff className="w-5 h-5" />
+            )}
+            {!isConnected && (
+              <span className="text-sm font-medium">重连</span>
+            )}
+          </button>
+
+          {/* 活跃连接数 */}
+          <div className="flex items-center space-x-1">
+            <div className="relative">
+              <Users className="w-5 h-5 text-gray-600" />
+              {connectionStats.activeConnections > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white connection-badge flex items-center justify-center px-1 font-bold">
+                  {connectionStats.activeConnections}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 设备信息和刷新 */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleRefreshStats}
+              disabled={isRefreshing}
+              className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-200"
+              title="刷新"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={() => setShowDeviceList(!showDeviceList)}
+              className="flex items-center space-x-1 px-2 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200"
+              title="查看设备"
+            >
+              <Smartphone className="w-3 h-3" />
+              <span className="font-mono">{deviceId.slice(-8)}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* PC端布局 */}
+      <div className="hidden md:flex items-center justify-between">
         {/* 连接状态 */}
         <div className="flex items-center space-x-3">
           <div className={`flex items-center space-x-2 ${
@@ -81,7 +141,7 @@ export default function ConnectionStatus({
               {isConnected ? '已连接' : '未连接'}
             </span>
           </div>
-          
+
           {!isConnected && (
             <button
               onClick={onReconnect}

@@ -284,7 +284,7 @@ export default function ClipboardItem({ item, onDelete, onCopy, onUpdate }: Clip
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-900 break-words whitespace-pre-wrap">
+            <p className="text-sm text-gray-900 break-words whitespace-pre-wrap overflow-hidden">
               {item.content.length > 200
                 ? `${item.content.substring(0, 200)}...`
                 : item.content
@@ -304,14 +304,14 @@ export default function ClipboardItem({ item, onDelete, onCopy, onUpdate }: Clip
       </div>
 
       {/* 元信息和操作按钮 */}
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <div className="flex items-center space-x-2">
-          <span>来自: {item.deviceId}</span>
-          <span>•</span>
-          <span>{formatDate(item.createdAt)}</span>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-gray-500">
+        <div className="flex items-center space-x-2 min-w-0">
+          <span className="truncate">来自: <span className="font-mono">{item.deviceId.slice(-8)}</span></span>
+          <span className="hidden sm:inline">•</span>
+          <span className="whitespace-nowrap">{formatDate(item.createdAt)}</span>
         </div>
-        
-        <div className="flex items-center space-x-2">
+
+        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
           {/* 编辑按钮 */}
           {onUpdate && !isEditing && (
             <button

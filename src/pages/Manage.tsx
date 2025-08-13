@@ -281,7 +281,7 @@ export default function Manage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">加载中...</p>
@@ -291,10 +291,9 @@ export default function Manage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* 页面标题 */}
-        <div className="mb-8">
+    <div className="max-w-6xl mx-auto px-4 py-4 md:py-8">
+        {/* 页面标题 - 仅PC端显示 */}
+        <div className="hidden md:block mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             内容管理
           </h1>
@@ -546,7 +545,6 @@ export default function Manage() {
             </>
           )}
         </div>
-      </div>
     </div>
   );
 }
