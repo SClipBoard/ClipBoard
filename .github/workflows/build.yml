@@ -165,8 +165,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            clipboard-sync-linux-${{ github.ref_name }}.tar.gz
-            clipboard-sync-windows-${{ github.ref_name }}.zip
+            clipboard-sync-linux.tar.gz
+            clipboard-sync-windows.zip
           generate_release_notes: true
           draft: false
           prerelease: false
