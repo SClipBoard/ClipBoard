@@ -128,7 +128,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/clipboard-sync:1.0
+            ${{ secrets.DOCKERHUB_USERNAME }}/clipboard-sync:1.0.1
             ${{ secrets.DOCKERHUB_USERNAME }}/clipboard-sync:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
