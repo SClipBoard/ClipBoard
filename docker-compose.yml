@@ -29,7 +29,7 @@ services:
       mysql:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
+      - ./uploads:/app/dist/uploads
       - ./logs:/app/logs
     restart: unless-stopped
 
