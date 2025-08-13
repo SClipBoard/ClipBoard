@@ -7,6 +7,25 @@ import type { ApiResponse } from '../types/shared';
 
 const router: express.Router = express.Router();
 
+/**
+ * 生成符合RFC 5987标准的Content-Disposition头，正确处理中文文件名
+ */
+function generateContentDisposition(type: 'inline' | 'attachment', fileName: string): string {
+  // 对文件名进行URL编码
+  const encodedFileName = encodeURIComponent(fileName);
+
+  // 检查文件名是否包含非ASCII字符
+  const hasNonAscii = /[^\x00-\x7F]/.test(fileName);
+
+  if (hasNonAscii) {
+    // 如果包含非ASCII字符，只使用RFC 5987格式
+    return `${type}; filename*=UTF-8''${encodedFileName}`;
+  } else {
+    // 如果只包含ASCII字符，使用标准格式
+    return `${type}; filename="${fileName}"`;
+  }
+}
+
 // 添加中间件来记录所有到达文件路由的请求
 router.use((req, res, next) => {
   next();
@@ -128,7 +147,7 @@ router.get('/preview', async (req: Request, res: Response) => {
 
       // 设置响应头（内联显示）
       res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+      res.setHeader('Content-Disposition', generateContentDisposition('inline', fileName));
       res.setHeader('Content-Length', fileBuffer.length);
 
       // 发送文件
@@ -290,7 +309,7 @@ router.get('/download', async (req: Request, res: Response) => {
 
       // 设置响应头（下载）
       res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+      res.setHeader('Content-Disposition', generateContentDisposition('attachment', fileName));
       res.setHeader('Content-Length', fileBuffer.length);
 
       // 发送文件
@@ -400,7 +419,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       
       // 设置响应头
       res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(item.fileName || 'download')}"`);
+      const fileName = item.fileName || 'download';
+      res.setHeader('Content-Disposition', generateContentDisposition('attachment', fileName));
       res.setHeader('Content-Length', fileBuffer.length);
       
       // 发送文件
@@ -510,7 +530,8 @@ router.get('/:id/preview', async (req: Request, res: Response) => {
       
       // 设置响应头（内联显示）
       res.setHeader('Content-Type', item.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(item.fileName || 'preview')}"`);
+      const fileName = item.fileName || 'preview';
+      res.setHeader('Content-Disposition', generateContentDisposition('inline', fileName));
       res.setHeader('Content-Length', fileBuffer.length);
       
       // 发送文件

@@ -23,11 +23,59 @@ async function ensureUploadsDir(): Promise<void> {
 }
 
 /**
+ * 修复中文文件名编码问题
+ */
+function fixChineseFileName(fileName: string): string {
+  try {
+    // 如果文件名已经是正确的UTF-8编码，直接返回
+    if (isValidUTF8(fileName)) {
+      return fileName;
+    }
+
+    // 尝试多种编码转换方式
+    const encodings = ['latin1', 'iso-8859-1', 'windows-1252'];
+
+    for (const encoding of encodings) {
+      try {
+        const buffer = Buffer.from(fileName, encoding as BufferEncoding);
+        const decoded = buffer.toString('utf8');
+
+        // 检查转换后的字符串是否包含合理的中文字符
+        if (isValidUTF8(decoded) && /[\u4e00-\u9fff]/.test(decoded)) {
+          console.log(`文件名编码修复成功: ${fileName} -> ${decoded}`);
+          return decoded;
+        }
+      } catch (e) {
+        // 继续尝试下一种编码
+      }
+    }
+
+    return fileName;
+  } catch (error) {
+    console.warn('修复文件名编码失败:', error);
+    return fileName;
+  }
+}
+
+/**
+ * 检查字符串是否为有效的UTF-8编码
+ */
+function isValidUTF8(str: string): boolean {
+  try {
+    return Buffer.from(str, 'utf8').toString('utf8') === str;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 生成唯一的文件名
  */
 function generateUniqueFileName(originalName: string): string {
-  const ext = path.extname(originalName);
-  const baseName = path.basename(originalName, ext);
+  // 修复中文文件名编码问题
+  const fixedName = fixChineseFileName(originalName);
+  const ext = path.extname(fixedName);
+  const baseName = path.basename(fixedName, ext);
   const uniqueId = uuidv4();
   return `${baseName}_${uniqueId}${ext}`;
 }

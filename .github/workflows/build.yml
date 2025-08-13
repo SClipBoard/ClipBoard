@@ -154,12 +154,12 @@ jobs:
       - name: Create Linux tar.gz
         run: |
           cd linux-build
-          tar -czf ../clipboard-sync-linux-${{ github.ref_name }}.tar.gz *
+          tar -czf ../clipboard-sync-linux.tar.gz *
 
       - name: Create Windows zip
         run: |
           cd windows-build
-          zip -r ../clipboard-sync-windows-${{ github.ref_name }}.zip *
+          zip -r ../clipboard-sync-windows.zip *
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

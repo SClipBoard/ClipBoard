@@ -29,6 +29,15 @@ app.use(cors());
 app.use(express.json({ limit: '50gb' })); // 移除实际限制，设置一个很大的值
 app.use(express.urlencoded({ extended: true, limit: '50gb' }));
 
+// 设置字符编码处理
+app.use((req, res, next) => {
+  // 只为JSON响应设置字符编码，避免影响文件下载
+  if (req.path.startsWith('/api/') && !req.path.includes('/files/')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  next();
+});
+
 // 静态文件服务 - 服务前端打包后的文件
 app.use(express.static(path.join(__dirname, '../')));
 

@@ -10,6 +10,33 @@ import { saveFileFromBase64 } from '../utils/fileStorage.js';
 const router: express.Router = express.Router();
 
 /**
+ * 修复文件名编码问题
+ */
+function fixFileNameEncoding(fileName: string): string {
+  try {
+    // 检查是否包含明显的乱码字符（UTF-8被错误解释为Latin-1的情况）
+    if (/[ÃÂ¡Â¢Â£Â¤Â¥Â¦Â§Â¨Â©ÂªÂ«Â¬Â­Â®Â¯Â°Â±Â²Â³Â´ÂµÂ¶Â·Â¸Â¹ÂºÂ»Â¼Â½Â¾Â¿àáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ]/.test(fileName)) {
+      // 尝试从Latin-1转换为UTF-8
+      const buffer = Buffer.from(fileName, 'latin1');
+      const decoded = buffer.toString('utf8');
+
+      // 检查转换后是否包含合理的中文字符
+      if (/[\u4e00-\u9fff]/.test(decoded)) {
+        console.log(`文件名编码修复: ${fileName} -> ${decoded}`);
+        return decoded;
+      }
+    }
+
+    return fileName;
+  } catch (error) {
+    console.warn('修复文件名编码失败:', error);
+    return fileName;
+  }
+}
+
+
+
+/**
  * 自动清理超出最大条目数的内容
  */
 async function autoCleanupIfNeeded(): Promise<void> {
@@ -239,13 +266,23 @@ router.post('/upload', uploadSingle, handleUploadError, async (req: Request, res
       });
     }
 
+    // 手动修复文件名编码问题
+    const fixedOriginalName = fixFileNameEncoding(uploadedFile.originalname);
+    const finalFileName = fileName ? fixFileNameEncoding(fileName) : fixedOriginalName;
+
+    console.log('=== 文件上传编码修复 ===');
+    console.log('原始文件名:', JSON.stringify(uploadedFile.originalname));
+    console.log('修复后文件名:', JSON.stringify(fixedOriginalName));
+    console.log('最终文件名:', JSON.stringify(finalFileName));
+    console.log('========================');
+
     // 创建新的剪切板项
     const newItemData: Omit<ClipboardItem, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       type,
       content: uploadedFile.filename, // 存储文件名作为内容标识
       deviceId,
-      fileName: fileName || uploadedFile.originalname,
+      fileName: finalFileName,
       fileSize: uploadedFile.size,
       mimeType: uploadedFile.mimetype,
       filePath: uploadedFile.filename // 存储文件路径
