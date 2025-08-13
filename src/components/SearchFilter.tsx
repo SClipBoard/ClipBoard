@@ -17,6 +17,8 @@ export default function SearchFilter({
   const [searchQuery, setSearchQuery] = useState(currentSearch);
   const [showFilters, setShowFilters] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // 同步外部搜索状态到内部状态
   useEffect(() => {
@@ -54,10 +56,26 @@ export default function SearchFilter({
     setTimeout(() => setIsSearching(false), 500);
   };
 
+  // 添加点击外部区域隐藏筛选器的逻辑
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      const searchContainer = target.closest('.search-filter-container');
+      if (!searchContainer && showMobileFilters && !isSearchFocused) {
+        setShowMobileFilters(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMobileFilters, isSearchFocused]);
+
   const hasActiveFilters = currentType !== 'all' || searchQuery.length > 0;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 search-filter-container">
       {/* 移动端布局 */}
       <div className="md:hidden">
         {/* 搜索框 */}
@@ -70,6 +88,20 @@ export default function SearchFilter({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={handleKeyPress}
+            onFocus={() => {
+              setIsSearchFocused(true);
+              setShowMobileFilters(true);
+            }}
+            onBlur={(e) => {
+              setIsSearchFocused(false);
+              // 延迟隐藏筛选器，给用户时间点击筛选按钮
+              setTimeout(() => {
+                // 检查焦点是否在筛选器区域内
+                if (!e.currentTarget.parentElement?.parentElement?.contains(document.activeElement)) {
+                  setShowMobileFilters(false);
+                }
+              }, 150);
+            }}
             className="block w-full pl-9 pr-9 py-2.5 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
             placeholder="搜索剪切板内容"
           />
@@ -92,64 +124,97 @@ export default function SearchFilter({
           </div>
         </div>
 
-        {/* 移动端筛选器 - Logo显示 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => onTypeFilter('all')}
-              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
-                currentType === 'all'
-                  ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="全部"
-            >
-              <Filter className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onTypeFilter('text')}
-              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
-                currentType === 'text'
-                  ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="文字"
-            >
-              <FileText className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onTypeFilter('image')}
-              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
-                currentType === 'image'
-                  ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="图片"
-            >
-              <Image className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onTypeFilter('file')}
-              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
-                currentType === 'file'
-                  ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="文件"
-            >
-              <File className="w-5 h-5" />
-            </button>
-          </div>
+        {/* 移动端筛选器 - 在搜索框聚焦或有筛选条件时显示 */}
+        {(showMobileFilters || hasActiveFilters) && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => {
+                  onTypeFilter('all');
+                  setShowMobileFilters(true); // 保持筛选器显示
+                }}
+                onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                  currentType === 'all'
+                    ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="全部"
+              >
+                <Filter className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  onTypeFilter('text');
+                  setShowMobileFilters(true); // 保持筛选器显示
+                }}
+                onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                  currentType === 'text'
+                    ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="文字"
+              >
+                <FileText className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  onTypeFilter('image');
+                  setShowMobileFilters(true); // 保持筛选器显示
+                }}
+                onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                  currentType === 'image'
+                    ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="图片"
+              >
+                <Image className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  onTypeFilter('file');
+                  setShowMobileFilters(true); // 保持筛选器显示
+                }}
+                onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-200 ${
+                  currentType === 'file'
+                    ? 'bg-blue-100 text-blue-600 border-2 border-blue-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="文件"
+              >
+                <File className="w-5 h-5" />
+              </button>
+            </div>
 
-          {hasActiveFilters && (
-            <button
-              onClick={handleClearFilters}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 rounded-md"
-            >
-              清除
-            </button>
-          )}
-        </div>
+            <div className="flex items-center space-x-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={() => {
+                    handleClearFilters();
+                    setShowMobileFilters(false); // 清除后隐藏筛选器
+                  }}
+                  onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 rounded-md"
+                >
+                  清除
+                </button>
+              )}
+              {/* 添加关闭按钮 */}
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                onMouseDown={(e) => e.preventDefault()} // 防止搜索框失去焦点
+                className="text-gray-400 hover:text-gray-600 p-1"
+                title="隐藏筛选器"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* PC端布局 */}

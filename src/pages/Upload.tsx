@@ -393,7 +393,7 @@ export default function Upload() {
                 </span>
                 <button
                   onClick={handlePasteFromClipboard}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  className="hidden md:inline-block text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
                   从剪切板粘贴
                 </button>
@@ -447,7 +447,7 @@ export default function Upload() {
                 </div>
               )}
               
-              <div className="mt-4">
+              <div className="hidden md:block mt-4">
                 <button
                   onClick={handlePasteFromClipboard}
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium"

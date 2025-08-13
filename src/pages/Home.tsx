@@ -470,18 +470,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 移动端统计信息 */}
-        <div className="md:hidden mb-6 text-center">
-          <div className="text-sm text-gray-500">
-            {searchQuery || typeFilter !== 'all' ? (
-              <span>
-                找到 {totalItems} 项内容 / 共 {allTotalItems} 项
-              </span>
-            ) : (
-              <span>共 {allTotalItems} 项内容</span>
-            )}
-          </div>
-        </div>
+
 
         {/* 内容列表 */}
         <div className="space-y-4">
