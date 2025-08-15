@@ -489,6 +489,12 @@ const swaggerSpec = swaggerJSDoc(swaggerOptions);
  * 设置 Swagger 文档
  */
 export function setupSwagger(app: Application): void {
+  // 提供 JSON 格式的 API 规范
+  app.get('/api/docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+
   // Swagger UI 配置
   const swaggerUiOptions = {
     customCss: `
@@ -507,17 +513,12 @@ export function setupSwagger(app: Application): void {
       defaultModelExpandDepth: 2,
       showExtensions: true,
       showCommonExtensions: true
-    }
+    },
+    explorer: true
   };
 
-  // 设置 API 文档路由
+  // 设置 Swagger UI 路由 - 使用更简洁的方式
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
-  
-  // 提供 JSON 格式的 API 规范
-  app.get('/api/docs.json', (_req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
-  });
 
   console.log('📚 API 文档已启用:');
   console.log('   - Swagger UI: /api/docs');

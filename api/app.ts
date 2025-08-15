@@ -31,20 +31,22 @@ app.use(express.urlencoded({ extended: true, limit: '50gb' }));
 
 // 设置字符编码处理
 app.use((req, res, next) => {
-  // 只为JSON响应设置字符编码，避免影响文件下载
-  if (req.path.startsWith('/api/') && !req.path.includes('/files/')) {
+  // 只为JSON响应设置字符编码，避免影响文件下载和 Swagger UI
+  if (req.path.startsWith('/api/') &&
+      !req.path.includes('/files/') &&
+      !req.path.includes('/docs')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
   next();
 });
 
-// 静态文件服务 - 服务前端打包后的文件
-app.use(express.static(path.join(__dirname, '../')));
-
 /**
- * API 文档
+ * API 文档 - 需要在静态文件服务之前设置
  */
 setupSwagger(app);
+
+// 静态文件服务 - 服务前端打包后的文件
+app.use(express.static(path.join(__dirname, '../')));
 
 /**
  * API Routes
@@ -82,6 +84,20 @@ app.use('/api/health', (req: Request, res: Response): void => {
   res.status(200).json({
     success: true,
     message: 'ok'
+  });
+});
+
+// 调试路由 - 检查 Swagger 配置
+app.get('/api/debug/swagger', (req: Request, res: Response): void => {
+  res.json({
+    success: true,
+    message: 'Swagger 调试信息',
+    data: {
+      swaggerUiVersion: require('swagger-ui-express/package.json').version,
+      swaggerJsdocVersion: require('swagger-jsdoc/package.json').version,
+      nodeEnv: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
+    }
   });
 });
 
